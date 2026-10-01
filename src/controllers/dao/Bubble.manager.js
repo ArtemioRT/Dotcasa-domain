@@ -60,7 +60,13 @@ export class BubbleManager {
         const r = await fetch(api.toString(), {
           cf: { cacheTtl: 3600, cacheEverything: true },
         });
-        if (!r.ok) break;
+        if (!r.ok) {
+          Logger.error(
+            `Bubble respondió ${r.status} para tipo: ${tipo}`,
+            (await r.text()).slice(0, 300),
+          );
+          break;
+        }
 
         const j = await r.json();
         const results = j.response?.results ?? [];

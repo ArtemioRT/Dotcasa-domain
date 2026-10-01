@@ -11,7 +11,7 @@ export class SitemapRoute {
       env,
       config.BUBBLE.API_TIPO,
       [
-        { key: "indexable", constraint_type: "equals", value: "yes" },
+        { key: "indexable", constraint_type: "equals", value: true },
         {
           key: config.BUBBLE.API_CAMPO_TOTAL,
           constraint_type: "greater than",
@@ -21,7 +21,7 @@ export class SitemapRoute {
     );
 
     const props = await BubbleManager.traerTodo(request, env, "propiedades", [
-      { key: "activa", constraint_type: "equals", value: "yes" },
+      { key: "activa", constraint_type: "equals", value: true },
     ]);
 
     const rutasUnicas = new Set();
