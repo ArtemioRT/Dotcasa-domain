@@ -1,0 +1,7 @@
+name = "dotcasa-router"
+main = "src/index.js"
+compatibility_date = "2024-03-01"
+
+# Aquí puedes poner tus variables de entorno publicas que no son sencibles
+# [vars]
+# MI_VARIABLE = "valor"

@@ -1,0 +1,106 @@
+import { config } from "../controllers/config/config.js";
+import { BubbleManager } from "../controllers/dao/Bubble.manager.js";
+import { Utils } from "../services/utils/utils.js";
+import { SitemapRoute } from "./SiteMap.route.js";
+
+export class AppRouter {
+  static async route(request, env) {
+    const proxyRequest = (nuevaRuta = null) => {
+      const target = new URL(request.url);
+
+      const init = {
+        method: request.method,
+        headers: new Headers(request.headers),
+        body: request.body, // Fundamental para que los POST envíen datos a Bubble
+        redirect: "manual",
+      };
+
+      if (env.BUBBLE_BASE_URL) {
+        const baseUrl = new URL(env.BUBBLE_BASE_URL);
+        target.protocol = baseUrl.protocol;
+        target.hostname = baseUrl.hostname;
+        target.port = baseUrl.port;
+        init.headers.set("Host", baseUrl.hostname);
+      }
+
+      if (nuevaRuta) {
+        target.pathname = nuevaRuta;
+      }
+
+      return fetch(target.toString(), init);
+    };
+
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      return proxyRequest();
+    }
+
+    const url = new URL(request.url);
+
+    if (url.pathname === "/sitemap.xml") {
+      return SitemapRoute.handle(request, env);
+    }
+
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (parts.length === 0) return proxyRequest();
+
+    const norm = parts.map(Utils.normalizar);
+    const primero = norm[0];
+
+    const redirigir = (nuevaRuta) =>
+      Response.redirect(url.origin + nuevaRuta + url.search, 301);
+
+    const noEncontrado = () => proxyRequest("/pagina-no-encontrada-404");
+
+    const listado = async (slug) => {
+      if (!(await BubbleManager.rutaExiste(slug, request, env)))
+        return noEncontrado();
+      return proxyRequest("/buscador/" + slug);
+    };
+
+    const canonica = "/" + norm.join("/");
+    const esCanonica = url.pathname === canonica;
+
+    if (config.TIPOS.has(primero)) {
+      if (!esCanonica) return redirigir(canonica);
+      if (norm.length === 1) return listado(primero);
+      if (!config.OPS.has(norm[1])) return noEncontrado();
+
+      if (norm[2] === "cp" || norm[2] === "fraccionamiento") {
+        if (norm.length !== 4) return noEncontrado();
+        if (norm[2] === "cp" && !config.CP_REGEX.test(norm[3]))
+          return noEncontrado();
+        return listado(norm.join("-"));
+      }
+
+      if (norm.length === 6)
+        return proxyRequest("/detalle_propiedad/" + parts[5]);
+      if (norm.length <= 5) return listado(norm.join("-"));
+
+      return noEncontrado();
+    }
+
+    if (primero === "cp") {
+      if (norm.length !== 2 || !config.CP_REGEX.test(norm[1]))
+        return noEncontrado();
+      if (!esCanonica) return redirigir(canonica);
+      return listado("cp-" + norm[1]);
+    }
+
+    if (primero === "municipio") {
+      if (norm.length !== 2) return noEncontrado();
+      if (!esCanonica) return redirigir(canonica);
+      return listado("municipio-" + norm[1]);
+    }
+
+    if (norm.length === 1) {
+      if (config.OPS.has(primero)) return redirigir("/casa/" + primero);
+      if (config.CP_REGEX.test(primero)) return redirigir("/cp/" + primero);
+      if (config.ESTADOS.has(primero)) {
+        if (!esCanonica) return redirigir(canonica);
+        return listado(primero);
+      }
+    }
+
+    return proxyRequest();
+  }
+}
