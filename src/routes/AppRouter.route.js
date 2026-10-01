@@ -27,7 +27,37 @@ export class AppRouter {
         target.pathname = nuevaRuta;
       }
 
-      return fetch(target.toString(), init);
+      return fetch(target.toString(), init).then(publicarRespuesta);
+    };
+
+    // Si Bubble vive en otro host (p. ej. app.dotcasa.com.mx), sus redirecciones
+    // y cookies traen ese host. Lo cambiamos por el dominio público.
+    const publicarRespuesta = (res) => {
+      if (!env.BUBBLE_BASE_URL) return res;
+      const bubbleHost = new URL(env.BUBBLE_BASE_URL).hostname;
+      const publico = new URL(request.url);
+      if (bubbleHost === publico.hostname) return res;
+
+      const location = res.headers.get("Location");
+      const cookies = res.headers.getSetCookie();
+      const cookieConDominio = cookies.some((c) => /;\s*domain=/i.test(c));
+      if (!location && !cookieConDominio) return res;
+
+      const out = new Response(res.body, res);
+      if (location) {
+        const destino = new URL(location, env.BUBBLE_BASE_URL);
+        if (destino.hostname === bubbleHost) {
+          destino.protocol = publico.protocol;
+          destino.host = publico.host;
+          out.headers.set("Location", destino.toString());
+        }
+      }
+      if (cookieConDominio) {
+        out.headers.delete("Set-Cookie");
+        for (const c of cookies)
+          out.headers.append("Set-Cookie", c.replace(/;\s*domain=[^;]*/i, ""));
+      }
+      return out;
     };
 
     if (request.method !== "GET" && request.method !== "HEAD") {
