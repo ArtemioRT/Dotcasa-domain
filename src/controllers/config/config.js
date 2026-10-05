@@ -56,8 +56,10 @@ export const config = {
     API_CAMPO_SLUG: "slug",
     API_CAMPO_TOTAL: "total_propiedades",
     CACHE_SEGUNDOS: 600,
-    SITEMAP_MAX_PAGINAS: 20,
+    SITEMAP_MAX_PAGINAS: 50,
+    // Rutas (listados) con menos propiedades que esto no van al sitemap
+    SITEMAP_MIN_PROPIEDADES: 2,
     API_TIPO_PROP: "propiedades",
-    API_CAMPO_SLUGTEXT: "slug_text",
+    API_CAMPO_SLUGTEXT: "Slug_text",
   },
 };

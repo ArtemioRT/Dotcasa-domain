@@ -68,7 +68,8 @@ export class BubbleManager {
       if (!r.ok) return null;
 
       const j = await r.json();
-      const u = j.response?.results?.[0]?.url_publica;
+      const p = j.response?.results?.[0];
+      const u = p?.URL_publica ?? p?.url_publica;
       // Solo sirve si es una URL bonita (no la propia /detalle_propiedad/...)
       return typeof u === "string" &&
         u.startsWith("/") &&

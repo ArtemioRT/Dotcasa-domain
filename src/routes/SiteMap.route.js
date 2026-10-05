@@ -3,6 +3,22 @@ import { BubbleManager } from "../controllers/dao/Bubble.manager.js";
 import { Utils } from "../services/utils/utils.js";
 
 export class SitemapRoute {
+  // Devuelve la misma ruta canónica que usa AppRouter (sin acentos, minúsculas),
+  // o null si la URL no sirve para el sitemap (vacía, "//", cp inválido).
+  static canonica(urlPublica) {
+    if (!urlPublica) return null;
+    const parts = urlPublica.split("/").filter(Boolean);
+    const norm = parts.map(Utils.normalizar);
+    if (norm.length === 0) return null;
+    // Ficha de propiedad: el Slug_text final va tal cual (igual que AppRouter)
+    if (config.TIPOS.has(norm[0]) && norm.length === 6)
+      return "/" + [...norm.slice(0, 5), encodeURIComponent(parts[5])].join("/");
+    for (let i = 0; i < norm.length; i++)
+      if (norm[i] === "cp" && !config.CP_REGEX.test(norm[i + 1] ?? ""))
+        return null;
+    return "/" + norm.join("/");
+  }
+
   static async handle(request, env) {
     const origin = new URL(request.url).origin;
 
@@ -21,14 +37,23 @@ export class SitemapRoute {
     );
 
     const props = await BubbleManager.traerTodo(request, env, "propiedades", [
-      { key: "activa", constraint_type: "equals", value: true },
+      { key: "Estatus", constraint_type: "equals", value: "Activo" },
     ]);
 
     const rutasUnicas = new Set();
-    for (const r of rutas) if (r.url_publica) rutasUnicas.add(r.url_publica);
-    for (const p of props) if (p.url_publica) rutasUnicas.add(p.url_publica);
+    const agregar = (urlPublica) => {
+      const ruta = SitemapRoute.canonica(urlPublica);
+      if (ruta) rutasUnicas.add(ruta);
+    };
+    for (const r of rutas)
+      if (
+        (r[config.BUBBLE.API_CAMPO_TOTAL] ?? 0) >=
+        config.BUBBLE.SITEMAP_MIN_PROPIEDADES
+      )
+        agregar(r.url_publica);
+    for (const p of props) agregar(p.URL_publica ?? p.url_publica);
 
-    const urls = [...rutasUnicas]
+    const urls = ["/", ...rutasUnicas]
       .map((p) => `  <url><loc>${Utils.escapeXml(origin + p)}</loc></url>`)
       .join("\n");
 
