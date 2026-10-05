@@ -57,5 +57,7 @@ export const config = {
     API_CAMPO_TOTAL: "total_propiedades",
     CACHE_SEGUNDOS: 600,
     SITEMAP_MAX_PAGINAS: 20,
+    API_TIPO_PROP: "propiedades",
+    API_CAMPO_SLUGTEXT: "slug_text",
   },
 };
