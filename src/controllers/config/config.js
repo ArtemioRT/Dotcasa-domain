@@ -60,6 +60,6 @@ export const config = {
     // Rutas (listados) con menos propiedades que esto no van al sitemap
     SITEMAP_MIN_PROPIEDADES: 2,
     API_TIPO_PROP: "propiedades",
-    API_CAMPO_SLUGTEXT: "slug_text",
+    API_CAMPO_SLUGTEXT: "Slug_text",
   },
 };

@@ -87,7 +87,11 @@ export class AppRouter {
       return proxyRequest("/buscador/" + slug);
     };
 
-    const canonica = "/" + norm.join("/");
+    // En la ficha (6 segmentos) el último es el Slug_text de Bubble: se deja
+    // tal cual porque la página detalle_propiedad lo busca exacto.
+    const esFicha = config.TIPOS.has(primero) && norm.length === 6;
+    const canonica =
+      "/" + (esFicha ? [...norm.slice(0, 5), parts[5]] : norm).join("/");
     const esCanonica = url.pathname === canonica;
 
     if (config.TIPOS.has(primero)) {
