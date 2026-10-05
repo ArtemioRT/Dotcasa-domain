@@ -131,6 +131,13 @@ export class AppRouter {
       }
     }
 
+    // Ficha por la URL vieja /detalle_propiedad/<Slug_text>:
+    // si la propiedad ya tiene url_publica bonita, redirige (301) a ella.
+    if (primero === "detalle_propiedad" && parts.length === 2) {
+      const bonita = await BubbleManager.urlBonita(parts[1], request, env);
+      if (bonita && bonita !== url.pathname) return redirigir(bonita);
+    }
+
     return proxyRequest();
   }
 }

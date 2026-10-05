@@ -43,6 +43,47 @@ export class BubbleManager {
     }
   }
 
+  // Devuelve la url_publica bonita de una propiedad a partir de su Slug_text,
+  // o null si no la tiene o si la API falla (así nunca se rompe la ficha).
+  static async urlBonita(slugText, request, env) {
+    const baseUrl = this._getBaseUrl(request, env);
+    const api = new URL(`/api/1.1/obj/${config.BUBBLE.API_TIPO_PROP}`, baseUrl);
+
+    api.search =
+      "?limit=1&constraints=" +
+      encodeURIComponent(
+        JSON.stringify([
+          {
+            key: config.BUBBLE.API_CAMPO_SLUGTEXT,
+            constraint_type: "equals",
+            value: slugText,
+          },
+        ]),
+      );
+
+    try {
+      const r = await fetch(api.toString(), {
+        cf: { cacheTtl: config.BUBBLE.CACHE_SEGUNDOS, cacheEverything: true },
+      });
+      if (!r.ok) return null;
+
+      const j = await r.json();
+      const u = j.response?.results?.[0]?.url_publica;
+      // Solo sirve si es una URL bonita (no la propia /detalle_propiedad/...)
+      return typeof u === "string" &&
+        u.startsWith("/") &&
+        !u.startsWith("/detalle_propiedad")
+        ? u
+        : null;
+    } catch (e) {
+      Logger.error(
+        `Error buscando url_publica en Bubble (Slug_text: ${slugText})`,
+        e.message,
+      );
+      return null;
+    }
+  }
+
   static async traerTodo(request, env, tipo, constraints) {
     const baseUrl = this._getBaseUrl(request, env);
     const items = [];
