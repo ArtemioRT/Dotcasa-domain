@@ -50,6 +50,13 @@ export const config = {
   ]),
   CP_REGEX: /^\d{5}$/,
 
+  // Páginas fijas de Bubble que van al sitemap (ruta exacta, tal cual)
+  PAGINAS_ESTATICAS: [
+    "/acerca_de_nosotros",
+    "/terminos_y_condiciones",
+    "/politica_de_privacidad",
+  ],
+
   // Configuración de Bubble Data API
   BUBBLE: {
     API_TIPO: "ruta",

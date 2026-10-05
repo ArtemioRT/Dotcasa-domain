@@ -53,7 +53,7 @@ export class SitemapRoute {
         agregar(r.url_publica);
     for (const p of props) agregar(p.URL_publica ?? p.url_publica);
 
-    const urls = ["/", ...rutasUnicas]
+    const urls = ["/", ...config.PAGINAS_ESTATICAS, ...rutasUnicas]
       .map((p) => `  <url><loc>${Utils.escapeXml(origin + p)}</loc></url>`)
       .join("\n");
 
