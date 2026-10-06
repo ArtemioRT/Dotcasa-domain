@@ -115,6 +115,11 @@ export class AppRouter {
     if (config.TIPOS.has(primero)) {
       if (!esCanonica) return redirigir(canonica);
       if (norm.length === 1) return listado(primero);
+      // Tipo por ubicación, venta y renta juntas: /casa/estado, /casa/estado/municipio
+      if (config.ESTADOS.has(norm[1])) {
+        if (norm.length > 3) return noEncontrado();
+        return listado(norm.join("-"));
+      }
       if (!config.OPS.has(norm[1])) return noEncontrado();
 
       if (norm[2] === "cp" || norm[2] === "fraccionamiento") {
