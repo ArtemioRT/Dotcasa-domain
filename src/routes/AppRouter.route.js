@@ -140,13 +140,16 @@ export class AppRouter {
       return listado("municipio-" + norm[1]);
     }
 
-    if (norm.length === 1) {
-      if (config.CP_REGEX.test(primero)) return redirigir("/cp/" + primero);
-      if (config.ESTADOS.has(primero)) {
-        if (!esCanonica) return redirigir(canonica);
-        return listado(primero);
-      }
+    // Todo tipo y toda operación por ubicación:
+    // /estado, /estado/municipio, /estado/municipio/colonia
+    if (config.ESTADOS.has(primero)) {
+      if (norm.length > 3) return noEncontrado();
+      if (!esCanonica) return redirigir(canonica);
+      return listado(norm.join("-"));
     }
+
+    if (norm.length === 1 && config.CP_REGEX.test(primero))
+      return redirigir("/cp/" + primero);
 
     // Ficha por la URL vieja /detalle_propiedad/<Slug_text>:
     // si la propiedad ya tiene url_publica bonita, redirige (301) a ella.
