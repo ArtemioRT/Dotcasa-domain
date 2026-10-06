@@ -12,6 +12,7 @@ export const config = {
     "bodega-comercial",
     "nave-industrial",
     "bodega-industrial",
+    "edificio",
   ]),
   OPS: new Set(["venta", "renta", "preventa"]),
   ESTADOS: new Set([
@@ -52,6 +53,7 @@ export const config = {
 
   // Páginas fijas de Bubble que van al sitemap (ruta exacta, tal cual)
   PAGINAS_ESTATICAS: [
+    "/propiedades",
     "/acerca_de_nosotros",
     "/terminos_y_condiciones",
     "/politica_de_privacidad",

@@ -81,14 +81,32 @@ export class AppRouter {
 
     const noEncontrado = () => proxyRequest("/pagina-no-encontrada-404");
 
+    // Con filtros (?precio_max=..., ?recamaras=...) la página sirve, pero Google
+    // solo debe indexar la versión limpia.
+    const sinIndexarSiFiltra = (res) => {
+      if (!url.search) return res;
+      const out = new Response(res.body, res);
+      out.headers.set("X-Robots-Tag", "noindex, follow");
+      return out;
+    };
+
     const listado = async (slug) => {
       if (!(await BubbleManager.rutaExiste(slug, request, env)))
         return noEncontrado();
-      return proxyRequest("/buscador/" + slug);
+      return proxyRequest("/buscador/" + slug).then(sinIndexarSiFiltra);
     };
 
     // En la ficha (6 segmentos) el último es el Slug_text de Bubble: se deja
     // tal cual porque la página detalle_propiedad lo busca exacto.
+    // Buscador general: se ve como /propiedades, Bubble sigue usando la página buscador
+    if (url.pathname === "/buscador" || url.pathname === "/buscador/")
+      return redirigir("/propiedades");
+    if (primero === "propiedades") {
+      if (norm.length !== 1) return noEncontrado();
+      if (url.pathname !== "/propiedades") return redirigir("/propiedades");
+      return proxyRequest("/buscador").then(sinIndexarSiFiltra);
+    }
+
     const esFicha = config.TIPOS.has(primero) && norm.length === 6;
     const canonica =
       "/" + (esFicha ? [...norm.slice(0, 5), parts[5]] : norm).join("/");
@@ -113,6 +131,20 @@ export class AppRouter {
       return noEncontrado();
     }
 
+    // Listados de todos los tipos por operación:
+    // /venta, /venta/estado, /venta/estado/municipio, /venta/estado/municipio/colonia
+    if (config.OPS.has(primero)) {
+      if (norm.length > 4) return noEncontrado();
+      if (!esCanonica) return redirigir(canonica);
+      // Mientras Bubble no tenga la ruta "venta", seguimos mandando a /casa/venta
+      if (
+        norm.length === 1 &&
+        !(await BubbleManager.rutaExiste(primero, request, env))
+      )
+        return redirigir("/casa/" + primero);
+      return listado(norm.join("-"));
+    }
+
     if (primero === "cp") {
       if (norm.length !== 2 || !config.CP_REGEX.test(norm[1]))
         return noEncontrado();
@@ -126,14 +158,16 @@ export class AppRouter {
       return listado("municipio-" + norm[1]);
     }
 
-    if (norm.length === 1) {
-      if (config.OPS.has(primero)) return redirigir("/casa/" + primero);
-      if (config.CP_REGEX.test(primero)) return redirigir("/cp/" + primero);
-      if (config.ESTADOS.has(primero)) {
-        if (!esCanonica) return redirigir(canonica);
-        return listado(primero);
-      }
+    // Todo tipo y toda operación por ubicación:
+    // /estado, /estado/municipio, /estado/municipio/colonia
+    if (config.ESTADOS.has(primero)) {
+      if (norm.length > 3) return noEncontrado();
+      if (!esCanonica) return redirigir(canonica);
+      return listado(norm.join("-"));
     }
+
+    if (norm.length === 1 && config.CP_REGEX.test(primero))
+      return redirigir("/cp/" + primero);
 
     // Ficha por la URL vieja /detalle_propiedad/<Slug_text>:
     // si la propiedad ya tiene url_publica bonita, redirige (301) a ella.
