@@ -81,14 +81,32 @@ export class AppRouter {
 
     const noEncontrado = () => proxyRequest("/pagina-no-encontrada-404");
 
+    // Con filtros (?precio_max=..., ?recamaras=...) la página sirve, pero Google
+    // solo debe indexar la versión limpia.
+    const sinIndexarSiFiltra = (res) => {
+      if (!url.search) return res;
+      const out = new Response(res.body, res);
+      out.headers.set("X-Robots-Tag", "noindex, follow");
+      return out;
+    };
+
     const listado = async (slug) => {
       if (!(await BubbleManager.rutaExiste(slug, request, env)))
         return noEncontrado();
-      return proxyRequest("/buscador/" + slug);
+      return proxyRequest("/buscador/" + slug).then(sinIndexarSiFiltra);
     };
 
     // En la ficha (6 segmentos) el último es el Slug_text de Bubble: se deja
     // tal cual porque la página detalle_propiedad lo busca exacto.
+    // Buscador general: se ve como /propiedades, Bubble sigue usando la página buscador
+    if (url.pathname === "/buscador" || url.pathname === "/buscador/")
+      return redirigir("/propiedades");
+    if (primero === "propiedades") {
+      if (norm.length !== 1) return noEncontrado();
+      if (url.pathname !== "/propiedades") return redirigir("/propiedades");
+      return proxyRequest("/buscador").then(sinIndexarSiFiltra);
+    }
+
     const esFicha = config.TIPOS.has(primero) && norm.length === 6;
     const canonica =
       "/" + (esFicha ? [...norm.slice(0, 5), parts[5]] : norm).join("/");
