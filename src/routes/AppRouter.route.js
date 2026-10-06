@@ -113,6 +113,20 @@ export class AppRouter {
       return noEncontrado();
     }
 
+    // Listados de todos los tipos por operación:
+    // /venta, /venta/estado, /venta/estado/municipio, /venta/estado/municipio/colonia
+    if (config.OPS.has(primero)) {
+      if (norm.length > 4) return noEncontrado();
+      if (!esCanonica) return redirigir(canonica);
+      // Mientras Bubble no tenga la ruta "venta", seguimos mandando a /casa/venta
+      if (
+        norm.length === 1 &&
+        !(await BubbleManager.rutaExiste(primero, request, env))
+      )
+        return redirigir("/casa/" + primero);
+      return listado(norm.join("-"));
+    }
+
     if (primero === "cp") {
       if (norm.length !== 2 || !config.CP_REGEX.test(norm[1]))
         return noEncontrado();
@@ -127,7 +141,6 @@ export class AppRouter {
     }
 
     if (norm.length === 1) {
-      if (config.OPS.has(primero)) return redirigir("/casa/" + primero);
       if (config.CP_REGEX.test(primero)) return redirigir("/cp/" + primero);
       if (config.ESTADOS.has(primero)) {
         if (!esCanonica) return redirigir(canonica);

@@ -12,6 +12,7 @@ export const config = {
     "bodega-comercial",
     "nave-industrial",
     "bodega-industrial",
+    "edificio",
   ]),
   OPS: new Set(["venta", "renta", "preventa"]),
   ESTADOS: new Set([
