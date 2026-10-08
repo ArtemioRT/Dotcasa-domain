@@ -43,9 +43,14 @@ export class BubbleManager {
     }
   }
 
-  // Devuelve la url_publica bonita de una propiedad a partir de su Slug_text,
-  // o null si no la tiene o si la API falla (así nunca se rompe la ficha).
-  static async urlBonita(slugText, request, env) {
+  // Busca la propiedad por su Slug_text (llega codificado en la URL, p. ej.
+  // con %20). Devuelve null si no existe o si la API falla.
+  static async propiedadPorSlug(slugText, request, env) {
+    let valor = slugText;
+    try {
+      valor = decodeURIComponent(slugText);
+    } catch (e) {}
+
     const baseUrl = this._getBaseUrl(request, env);
     const api = new URL(`/api/1.1/obj/${config.BUBBLE.API_TIPO_PROP}`, baseUrl);
 
@@ -56,7 +61,7 @@ export class BubbleManager {
           {
             key: config.BUBBLE.API_CAMPO_SLUGTEXT,
             constraint_type: "equals",
-            value: slugText,
+            value: valor,
           },
         ]),
       );
@@ -68,21 +73,27 @@ export class BubbleManager {
       if (!r.ok) return null;
 
       const j = await r.json();
-      const p = j.response?.results?.[0];
-      const u = p?.URL_publica ?? p?.url_publica;
-      // Solo sirve si es una URL bonita (no la propia /detalle_propiedad/...)
-      return typeof u === "string" &&
-        u.startsWith("/") &&
-        !u.startsWith("/detalle_propiedad")
-        ? u
-        : null;
+      return j.response?.results?.[0] ?? null;
     } catch (e) {
       Logger.error(
-        `Error buscando url_publica en Bubble (Slug_text: ${slugText})`,
+        `Error buscando propiedad en Bubble (Slug_text: ${valor})`,
         e.message,
       );
       return null;
     }
+  }
+
+  // Devuelve la url_publica bonita de una propiedad a partir de su Slug_text,
+  // o null si no la tiene o si la API falla (así nunca se rompe la ficha).
+  static async urlBonita(slugText, request, env) {
+    const p = await this.propiedadPorSlug(slugText, request, env);
+    const u = p?.URL_publica ?? p?.url_publica;
+    // Solo sirve si es una URL bonita (no la propia /detalle_propiedad/...)
+    return typeof u === "string" &&
+      u.startsWith("/") &&
+      !u.startsWith("/detalle_propiedad")
+      ? u
+      : null;
   }
 
   static async traerTodo(request, env, tipo, constraints) {
