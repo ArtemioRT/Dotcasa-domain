@@ -243,6 +243,33 @@ export const FichaSeo = {
       [`${tipoPlural} en ${op} en ${ciudad}`, migas[3][1]],
     ];
 
+    // Párrafo con los datos de la propiedad en frases completas, para que
+    // buscadores e IAs tengan texto que leer aunque la descripción sea corta.
+    const femenino = [
+      "casa",
+      "cabana",
+      "quinta",
+      "oficina",
+      "bodega-comercial",
+      "nave-industrial",
+      "bodega-industrial",
+    ].includes(tipoSlug);
+    const enLista = (l) =>
+      l.length > 1 ? l.slice(0, -1).join(", ") + " y " + l.at(-1) : l[0];
+    const porM2 = precio && (construccion || terreno);
+    const frases = [
+      `Se ofrece en ${op} ${femenino ? "una" : "un"} ${tipo.toLowerCase()} en la colonia ${colonia}, en ${ciudad}, ${estado}.`,
+      medidas.length && `Cuenta con ${enLista(medidas)}.`,
+      precioTexto &&
+        `El precio es de ${precioTexto} MXN` +
+          (porM2
+            ? `, unos $${Math.round(precio / porM2).toLocaleString("en-US")} por m² de ${construccion ? "construcción" : "terreno"}`
+            : "") +
+          ".",
+      `En DotCasa puedes ver las fotos, la ubicación en el mapa y contactar directamente al anunciante.`,
+      `También encuentras más ${tipoPlural.toLowerCase()} en ${op} en ${ciudad} y en otras colonias de ${estado}.`,
+    ].filter(Boolean);
+
     // Bloque para quien no ejecuta JavaScript. El script lo quita al
     // instante en el navegador, donde Bubble dibuja su propia página.
     const cuerpo =
@@ -252,6 +279,7 @@ export const FichaSeo = {
       (caracteristicas.length
         ? `<ul>${caracteristicas.map((c) => `<li>${escaparHtml(c)}</li>`).join("")}</ul>`
         : "") +
+      `<p>${escaparHtml(frases.join(" "))}</p>` +
       (descripcion
         ? descripcion
             .split(/\n+/)
