@@ -63,6 +63,37 @@ export class AppRouter {
       return out;
     };
 
+    // Bubble escribe su propio host (app.dotcasa.com.mx) en la página: scripts,
+    // links y la llamada a /api/1.1/init/data. Desde dotcasa.com.mx el navegador
+    // la bloquea por CORS, así que lo cambiamos por el dominio público; esas
+    // rutas también pasan por este Worker hacia Bubble.
+    const conHostPublico = (rewriter) => {
+      if (!env.BUBBLE_BASE_URL) return rewriter;
+      const bubbleHost = new URL(env.BUBBLE_BASE_URL).host;
+      const publico = new URL(request.url).host;
+      if (bubbleHost === publico) return rewriter;
+      const aPublico = (s) => s.split(bubbleHost).join(publico);
+
+      let guion = "";
+      return rewriter
+        .on("*", {
+          element: (e) => {
+            for (const [nombre, valor] of [...e.attributes])
+              if (valor.includes(bubbleHost))
+                e.setAttribute(nombre, aPublico(valor));
+          },
+        })
+        .on("script", {
+          // El texto llega en pedazos; se junta para no partir el host a la mitad.
+          text: (t) => {
+            guion += t.text;
+            if (!t.lastInTextNode) return t.remove();
+            t.replace(aPublico(guion), { html: true });
+            guion = "";
+          },
+        });
+    };
+
     // Bubble pone su propio canonical apuntando a app.dotcasa.com.mx; lo
     // cambiamos por la URL pública sin www. También quitamos X-Powered-By y
     // declaramos el charset en el header.
@@ -80,7 +111,7 @@ export class AppRouter {
 
       const canonica =
         "https://" + config.DOMINIO + new URL(request.url).pathname;
-      return new HTMLRewriter()
+      return conHostPublico(new HTMLRewriter())
         .on('link[rel="canonical"]', { element: (e) => e.remove() })
         .on('meta[property="og:url"]', {
           element: (e) => e.setAttribute("content", canonica),
