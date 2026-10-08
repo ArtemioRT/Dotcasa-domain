@@ -1,6 +1,7 @@
 import { config } from "../controllers/config/config.js";
 import { BubbleManager } from "../controllers/dao/Bubble.manager.js";
 import { Utils } from "../services/utils/utils.js";
+import { FichaSeo } from "../services/FichaSeo.js";
 import { SitemapRoute } from "./SiteMap.route.js";
 
 export class AppRouter {
@@ -178,8 +179,23 @@ export class AppRouter {
         return listado(norm.join("-"));
       }
 
-      if (norm.length === 6)
-        return proxyRequest("/detalle_propiedad/" + parts[5]);
+      if (norm.length === 6) {
+        const [res, prop] = await Promise.all([
+          proxyRequest("/detalle_propiedad/" + parts[5]),
+          BubbleManager.propiedadPorSlug(parts[5], request, env),
+        ]);
+        const html = (res.headers.get("Content-Type") || "").startsWith(
+          "text/html",
+        );
+        if (!prop || !html || res.status !== 200 || request.method !== "GET")
+          return res;
+        const datos = FichaSeo.datos(
+          prop,
+          norm,
+          "https://" + config.DOMINIO + canonica,
+        );
+        return FichaSeo.inyectar(res, datos);
+      }
       if (norm.length <= 5) return listado(norm.join("-"));
 
       return noEncontrado();
@@ -225,7 +241,7 @@ export class AppRouter {
 
     // Ficha por la URL vieja /detalle_propiedad/<Slug_text>:
     // si la propiedad ya tiene url_publica bonita, redirige (301) a ella.
-    if (primero === "detalle_propiedad" && parts.length === 2) {
+    if (primero === "detalle-propiedad" && parts.length === 2) {
       const bonita = await BubbleManager.urlBonita(parts[1], request, env);
       if (bonita && bonita !== url.pathname) return redirigir(bonita);
     }
