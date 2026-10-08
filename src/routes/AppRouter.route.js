@@ -27,7 +27,9 @@ export class AppRouter {
         target.pathname = nuevaRuta;
       }
 
-      return fetch(target.toString(), init).then(publicarRespuesta);
+      return fetch(target.toString(), init)
+        .then(publicarRespuesta)
+        .then(pulirHtml);
     };
 
     // Si Bubble vive en otro host (p. ej. app.dotcasa.com.mx), sus redirecciones
@@ -60,11 +62,53 @@ export class AppRouter {
       return out;
     };
 
+    // Bubble pone su propio canonical apuntando a app.dotcasa.com.mx; lo
+    // cambiamos por la URL pública sin www. También quitamos X-Powered-By y
+    // declaramos el charset en el header.
+    const pulirHtml = (res) => {
+      const tipo = res.headers.get("Content-Type") || "";
+      const esHtml = tipo.startsWith("text/html");
+      if (!esHtml && !res.headers.has("X-Powered-By")) return res;
+
+      const out = new Response(res.body, res);
+      out.headers.delete("X-Powered-By");
+      if (!esHtml) return out;
+      if (!/charset=/i.test(tipo))
+        out.headers.set("Content-Type", tipo + "; charset=utf-8");
+      if (request.method !== "GET" || res.status !== 200) return out;
+
+      const canonica =
+        "https://" + config.DOMINIO + new URL(request.url).pathname;
+      return new HTMLRewriter()
+        .on('link[rel="canonical"]', { element: (e) => e.remove() })
+        .on('meta[property="og:url"]', {
+          element: (e) => e.setAttribute("content", canonica),
+        })
+        .on("head", {
+          element: (e) =>
+            e.append(`<link rel="canonical" href="${canonica}">`, {
+              html: true,
+            }),
+        })
+        .transform(out);
+    };
+
     if (request.method !== "GET" && request.method !== "HEAD") {
       return proxyRequest();
     }
 
     const url = new URL(request.url);
+
+    // Una sola versión del sitio: https y sin www
+    if (
+      url.hostname === "www." + config.DOMINIO ||
+      (url.hostname === config.DOMINIO && url.protocol === "http:")
+    ) {
+      return Response.redirect(
+        "https://" + config.DOMINIO + url.pathname + url.search,
+        301,
+      );
+    }
 
     if (url.pathname === "/sitemap.xml") {
       return SitemapRoute.handle(request, env);
@@ -79,7 +123,12 @@ export class AppRouter {
     const redirigir = (nuevaRuta) =>
       Response.redirect(url.origin + nuevaRuta + url.search, 301);
 
-    const noEncontrado = () => proxyRequest("/pagina-no-encontrada-404");
+    // Se ve la página 404 de Bubble, pero con estado 404 para que Google no
+    // la indexe como si fuera una página real.
+    const noEncontrado = () =>
+      proxyRequest("/pagina-no-encontrada-404").then(
+        (res) => new Response(res.body, { status: 404, headers: res.headers }),
+      );
 
     // Con filtros (?precio_max=..., ?recamaras=...) la página sirve, pero Google
     // solo debe indexar la versión limpia.

@@ -1,4 +1,7 @@
 export const config = {
+  // Dominio público oficial (sin www). www y http redirigen aquí.
+  DOMINIO: "dotcasa.com.mx",
+
   // Constantes de negocio
   TIPOS: new Set([
     "casa",
