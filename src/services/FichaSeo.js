@@ -56,7 +56,9 @@ const lector = (prop) => {
   const texto = (...nombres) => {
     for (const n of nombres) {
       const v = mapa[n.toLowerCase().replace(/[^a-z0-9]/g, "")];
-      if (typeof v === "string" && v.trim()) return v.trim();
+      // Un campo que liga a otra cosa en Bubble llega como id ("123x456"), no sirve
+      if (typeof v === "string" && v.trim() && !/^\d+x\d+$/.test(v.trim()))
+        return v.trim();
     }
     return null;
   };
@@ -116,8 +118,13 @@ export const FichaSeo = {
       ? "$" + Math.round(precio).toLocaleString("en-US")
       : null;
     const encabezado = `${tipo} en ${operacion.toLowerCase()} en ${colonia}, ${ciudad}`;
+    // Google corta el título cerca de los 60 caracteres: el precio solo entra
+    // si cabe; si no, va en la descripción.
+    const conPrecio = `${encabezado} · ${precioTexto} | DotCasa`;
     const titulo =
-      encabezado + (precioTexto ? ` · ${precioTexto}` : "") + " | DotCasa";
+      precioTexto && conPrecio.length <= 60
+        ? conPrecio
+        : `${encabezado} | DotCasa`;
 
     const medidas = [
       recamaras && `${recamaras} recámaras`,
@@ -134,6 +141,7 @@ export const FichaSeo = {
 
     const resumen =
       `${encabezado}, ${estado}` +
+      (precioTexto ? ` por ${precioTexto}` : "") +
       (medidas.length ? `: ${medidas.join(", ")}` : "") +
       ". Fotos, precio y contacto en DotCasa.";
     const metaDescripcion =
@@ -228,6 +236,13 @@ export const FichaSeo = {
       })),
     };
 
+    const op = operacion.toLowerCase();
+    // Solo rutas tipo + operación, que Bubble ya crea para cada propiedad
+    const relacionadas = [
+      [`Más ${tipoPlural.toLowerCase()} en ${op} en ${colonia}`, migas[4][1]],
+      [`${tipoPlural} en ${op} en ${ciudad}`, migas[3][1]],
+    ];
+
     // Bloque para quien no ejecuta JavaScript. El script lo quita al
     // instante en el navegador, donde Bubble dibuja su propia página.
     const cuerpo =
@@ -244,7 +259,7 @@ export const FichaSeo = {
             .map((l) => `<p>${escaparHtml(l.trim())}</p>`)
             .join("")
         : "") +
-      `<p><a href="${escaparHtml(migas[4][1])}">Ver más ${escaparHtml(tipoPlural.toLowerCase())} en ${escaparHtml(operacion.toLowerCase())} en ${escaparHtml(colonia)}</a></p>` +
+      `<ul>${relacionadas.map(([n, r]) => `<li><a href="${escaparHtml(r)}">${escaparHtml(n)}</a></li>`).join("")}</ul>` +
       `</div><script>document.getElementById("dotcasa-ficha").remove()</script>`;
 
     return {
