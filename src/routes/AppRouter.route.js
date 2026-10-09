@@ -2,6 +2,7 @@ import { config } from "../controllers/config/config.js";
 import { BubbleManager } from "../controllers/dao/Bubble.manager.js";
 import { Utils } from "../services/utils/utils.js";
 import { FichaSeo } from "../services/FichaSeo.js";
+import { InicioSeo } from "../services/InicioSeo.js";
 import { SitemapRoute } from "./SiteMap.route.js";
 
 export class AppRouter {
@@ -147,7 +148,10 @@ export class AppRouter {
     }
 
     const parts = url.pathname.split("/").filter(Boolean);
-    if (parts.length === 0) return proxyRequest();
+    if (parts.length === 0)
+      return proxyRequest().then((res) =>
+        request.method === "GET" ? InicioSeo.inyectar(res) : res,
+      );
 
     const norm = parts.map(Utils.normalizar);
     const primero = norm[0];
