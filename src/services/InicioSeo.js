@@ -7,8 +7,8 @@ const NEGOCIO = {
   descripcion:
     "Portal inmobiliario con IA para comprar, vender y rentar casas, departamentos, terrenos y locales en Monterrey y su área metropolitana.",
   logo: "https://572b3ffc9793c4b4c15468dc316caa5c.cdn.bubble.io/f1773855403538x581530920122586000/DOTCADA%2520LOGO%2520AZUL%2520%2528HORIZONTAL%2529.webp",
-  telefono: "",
-  correo: "",
+  telefono: "+52 81 2381 1257",
+  correo: "contacto@dotcasa.com.mx",
   // Ciudad donde está la empresa (sin calle, porque no hay oficina al público)
   ciudad: "San Pedro Garza García",
   estado: "Nuevo León",
@@ -23,8 +23,12 @@ const NEGOCIO = {
     "García",
     "Santiago",
   ],
-  // Perfiles oficiales; agrega aquí Facebook, LinkedIn, etc.
-  perfiles: ["https://www.instagram.com/dotcasa.mx/"],
+  // Perfiles oficiales de la marca
+  perfiles: [
+    "https://www.facebook.com/profile.php?id=61579010939616",
+    "https://www.instagram.com/dotcasa.mx",
+    "https://www.linkedin.com/company/dotcasa",
+  ],
 };
 
 const esquema = () => {
