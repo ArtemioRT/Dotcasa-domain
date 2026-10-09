@@ -3,10 +3,21 @@ import { BubbleManager } from "../controllers/dao/Bubble.manager.js";
 import { Utils } from "../services/utils/utils.js";
 import { FichaSeo } from "../services/FichaSeo.js";
 import { InicioSeo } from "../services/InicioSeo.js";
+import { OauthGoogle } from "../services/OauthGoogle.js";
 import { SitemapRoute } from "./SiteMap.route.js";
 
 export class AppRouter {
   static async route(request, env) {
+    // Regreso de Google en app.dotcasa.com.mx y su paso final en dotcasa.com.mx
+    const entrada = new URL(request.url);
+    if (OauthGoogle.esRegreso(entrada, env))
+      return OauthGoogle.regreso(request, env);
+    if (
+      entrada.hostname === config.DOMINIO &&
+      entrada.pathname === OauthGoogle.RUTA_FIN
+    )
+      return OauthGoogle.fin(request);
+
     const proxyRequest = (nuevaRuta = null) => {
       const target = new URL(request.url);
 
