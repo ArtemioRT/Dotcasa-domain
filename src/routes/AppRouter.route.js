@@ -4,6 +4,7 @@ import { Utils } from "../services/utils/utils.js";
 import { FichaSeo } from "../services/FichaSeo.js";
 import { InicioSeo } from "../services/InicioSeo.js";
 import { GoogleLogin } from "../services/GoogleLogin.js";
+import { PuenteLogin } from "../services/PuenteLogin.js";
 import { SitemapRoute } from "./SiteMap.route.js";
 
 export class AppRouter {
@@ -15,6 +16,12 @@ export class AppRouter {
       entrada.pathname === GoogleLogin.RUTA
     )
       return GoogleLogin.handle(request, env);
+    // Regreso del login con Google hecho en app.dotcasa.com.mx
+    if (
+      entrada.hostname === config.DOMINIO &&
+      entrada.pathname === PuenteLogin.RUTA
+    )
+      return PuenteLogin.handle(request, env);
 
     const proxyRequest = async (nuevaRuta = null) => {
       const target = new URL(request.url);
