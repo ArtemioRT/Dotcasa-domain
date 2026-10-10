@@ -15,6 +15,8 @@ import { config } from "../controllers/config/config.js";
 // puente_login solo acepta llamadas con el secreto BUBBLE_API_TOKEN.
 const RUTA = "/__dotcasa/puente";
 
+// Si algo falla volvemos a /login con ?google_error=<motivo> para poder
+// diagnosticar (status de Bubble, sin_link, link_ajeno, red, config).
 const redirigir = (destino) =>
   new Response(null, {
     status: 302,
@@ -29,8 +31,10 @@ export const PuenteLogin = {
     const version = url.searchParams.get("v") === "test" ? "/version-test" : "";
     const login = "https://" + config.DOMINIO + version + "/login";
     const codigo = url.searchParams.get("t");
-    if (!codigo || !env.BUBBLE_BASE_URL || !env.BUBBLE_API_TOKEN)
-      return redirigir(login);
+    const fallo = (motivo) =>
+      redirigir(login + "?google_error=" + encodeURIComponent(motivo));
+    if (!codigo) return fallo("sin_codigo");
+    if (!env.BUBBLE_BASE_URL || !env.BUBBLE_API_TOKEN) return fallo("config");
 
     const bubble = new URL(env.BUBBLE_BASE_URL);
     try {
@@ -45,9 +49,9 @@ export const PuenteLogin = {
           body: JSON.stringify({ t: codigo }),
         },
       );
-      if (!res.ok) return redirigir(login);
-      const link = (await res.json())?.response?.link;
-      if (!link) return redirigir(login);
+      if (!res.ok) return fallo(String(res.status));
+      const link = (await res.json().catch(() => null))?.response?.link;
+      if (!link) return fallo("sin_link");
 
       // Solo seguimos links de Bubble o del propio sitio, y siempre en dotcasa.com.mx
       const destino = new URL(link, bubble.origin);
@@ -55,12 +59,12 @@ export const PuenteLogin = {
         destino.hostname !== bubble.hostname &&
         destino.hostname !== config.DOMINIO
       )
-        return redirigir(login);
+        return fallo("link_ajeno");
       destino.protocol = "https:";
       destino.host = config.DOMINIO;
       return redirigir(destino.toString());
     } catch (e) {
-      return redirigir(login);
+      return fallo("red");
     }
   },
 };
