@@ -3,18 +3,18 @@ import { BubbleManager } from "../controllers/dao/Bubble.manager.js";
 import { Utils } from "../services/utils/utils.js";
 import { FichaSeo } from "../services/FichaSeo.js";
 import { InicioSeo } from "../services/InicioSeo.js";
-import { PuenteLogin } from "../services/PuenteLogin.js";
+import { GoogleLogin } from "../services/GoogleLogin.js";
 import { SitemapRoute } from "./SiteMap.route.js";
 
 export class AppRouter {
   static async route(request, env) {
-    // Paso final del login con Google hecho en app.dotcasa.com.mx
+    // Login con Google directo en dotcasa.com.mx
     const entrada = new URL(request.url);
     if (
       entrada.hostname === config.DOMINIO &&
-      entrada.pathname === PuenteLogin.RUTA
+      entrada.pathname === GoogleLogin.RUTA
     )
-      return PuenteLogin.handle(request, env);
+      return GoogleLogin.handle(request, env);
 
     const proxyRequest = (nuevaRuta = null) => {
       const target = new URL(request.url);

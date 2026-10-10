@@ -2,6 +2,10 @@ export const config = {
   // Dominio público oficial (sin www). www y http redirigen aquí.
   DOMINIO: "dotcasa.com.mx",
 
+  // Cliente OAuth de Google (público: va en el HTML de la página)
+  GOOGLE_CLIENT_ID:
+    "537943252829-606h45qkdh7cfpfl7cal98t7u99objnr.apps.googleusercontent.com",
+
   // Constantes de negocio
   TIPOS: new Set([
     "casa",
