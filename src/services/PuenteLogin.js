@@ -16,7 +16,11 @@ import { config } from "../controllers/config/config.js";
 const RUTA = "/__dotcasa/puente";
 
 // Si algo falla volvemos a /login con ?google_error=<motivo> para poder
-// diagnosticar (status de Bubble, sin_link, link_ajeno, red, config).
+// diagnosticar (status de Bubble, sin_link_t<largo>, no_json, link_ajeno,
+// red, config).
+const INTENTOS = 4;
+const ESPERA_MS = 700;
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const redirigir = (destino) =>
   new Response(null, {
     status: 302,
@@ -38,30 +42,53 @@ export const PuenteLogin = {
 
     const bubble = new URL(env.BUBBLE_BASE_URL);
     try {
-      const res = await fetch(
-        bubble.origin + version + "/api/1.1/wf/puente_login",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "Bearer " + env.BUBBLE_API_TOKEN,
+      // Bubble puede tardar un instante en ver el código recién creado; si
+      // contesta sin link reintentamos (el código no se gasta si no lo encontró).
+      let respuesta;
+      for (let intento = 0; intento < INTENTOS; intento++) {
+        if (intento) await esperar(ESPERA_MS);
+        const res = await fetch(
+          bubble.origin + version + "/api/1.1/wf/puente_login",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + env.BUBBLE_API_TOKEN,
+            },
+            body: JSON.stringify({ t: codigo }),
           },
-          body: JSON.stringify({ t: codigo }),
-        },
-      );
-      if (!res.ok) return fallo(String(res.status));
-      const link = (await res.json().catch(() => null))?.response?.link;
-      if (!link) return fallo("sin_link");
+        );
+        if (!res.ok) return fallo(String(res.status));
+        const json = await res.json().catch(() => null);
+        if (!json) return fallo("no_json");
+        respuesta = json.response || {};
+        // Nunca escribimos el link en el log: sirve para entrar a la cuenta.
+        console.log("puente_login", {
+          intento,
+          status: res.status,
+          campos: Object.keys(respuesta),
+          t_largo: respuesta.t_largo,
+        });
+        if (respuesta.link || respuesta.t_largo === 0) break;
+      }
+      // t_largo nos dice si Bubble recibió el código (0 = no le llegó).
+      if (!respuesta.link)
+        return fallo("sin_link_t" + (respuesta.t_largo ?? "x"));
 
-      // Solo seguimos links de Bubble o del propio sitio, y siempre en dotcasa.com.mx
-      const destino = new URL(link, bubble.origin);
+      // Solo seguimos links de Bubble o del propio sitio, y siempre en
+      // dotcasa.com.mx con la versión que pidió la página.
+      const destino = new URL(respuesta.link, bubble.origin);
+      const host = destino.hostname;
       if (
-        destino.hostname !== bubble.hostname &&
-        destino.hostname !== config.DOMINIO
+        host !== bubble.hostname &&
+        host !== config.DOMINIO &&
+        !host.endsWith(".bubbleapps.io")
       )
         return fallo("link_ajeno");
       destino.protocol = "https:";
       destino.host = config.DOMINIO;
+      destino.pathname =
+        version + destino.pathname.replace(/^\/version-[^/]+(?=\/)/, "");
       return redirigir(destino.toString());
     } catch (e) {
       return fallo("red");
