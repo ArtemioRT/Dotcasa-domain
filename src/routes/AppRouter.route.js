@@ -16,7 +16,7 @@ export class AppRouter {
     )
       return GoogleLogin.handle(request, env);
 
-    const proxyRequest = (nuevaRuta = null) => {
+    const proxyRequest = async (nuevaRuta = null) => {
       const target = new URL(request.url);
 
       const init = {
@@ -32,6 +32,7 @@ export class AppRouter {
         target.hostname = baseUrl.hostname;
         target.port = baseUrl.port;
         init.headers.set("Host", baseUrl.hostname);
+        await comoBubble(init, baseUrl);
       }
 
       if (nuevaRuta) {
@@ -41,6 +42,29 @@ export class AppRouter {
       return fetch(target.toString(), init)
         .then(publicarRespuesta)
         .then(pulirHtml);
+    };
+
+    // El navegador cree que la app vive en dotcasa.com.mx (ver conHostPublico),
+    // pero Bubble solo acepta llamadas de su propio dominio: registro, login y
+    // demás acciones de servidor fallan con su error genérico. Le mandamos
+    // Origin, Referer y las URLs del cuerpo con el host de Bubble.
+    const comoBubble = async (init, baseUrl) => {
+      const publico = new URL(request.url).origin;
+      if (publico === baseUrl.origin) return;
+      const aBubble = (s) => s.split(publico).join(baseUrl.origin);
+
+      for (const nombre of ["Origin", "Referer"]) {
+        const valor = init.headers.get(nombre);
+        if (valor && valor.startsWith(publico))
+          init.headers.set(nombre, aBubble(valor));
+      }
+
+      const tipo = init.headers.get("Content-Type") || "";
+      const esTexto = /json|x-www-form-urlencoded|text\/plain/i.test(tipo);
+      if (!init.body || !esTexto) return;
+      const cuerpo = await request.text();
+      init.body = cuerpo.includes(publico) ? aBubble(cuerpo) : cuerpo;
+      init.headers.delete("Content-Length");
     };
 
     // Si Bubble vive en otro host (p. ej. app.dotcasa.com.mx), sus redirecciones
