@@ -1,5 +1,7 @@
 import { config } from "../controllers/config/config.js";
+import { enlacePublico } from "./EnlaceBubble.js";
 
+// Respaldo del login directo (GoogleLogin.js), para cuando ese no se puede usar.
 // Login con Google usando el plugin de Bubble. Google solo deja a Bubble
 // regresar a su propio dominio (app.dotcasa.com.mx), así que el login se hace
 // ahí y luego se pasa la sesión a dotcasa.com.mx:
@@ -77,19 +79,9 @@ export const PuenteLogin = {
 
       // Solo seguimos links de Bubble o del propio sitio, y siempre en
       // dotcasa.com.mx con la versión que pidió la página.
-      const destino = new URL(respuesta.link, bubble.origin);
-      const host = destino.hostname;
-      if (
-        host !== bubble.hostname &&
-        host !== config.DOMINIO &&
-        !host.endsWith(".bubbleapps.io")
-      )
-        return fallo("link_ajeno");
-      destino.protocol = "https:";
-      destino.host = config.DOMINIO;
-      destino.pathname =
-        version + destino.pathname.replace(/^\/version-[^/]+(?=\/)/, "");
-      return redirigir(destino.toString());
+      const destino = enlacePublico(respuesta.link, bubble, version);
+      if (!destino) return fallo("link_ajeno");
+      return redirigir(destino);
     } catch (e) {
       return fallo("red");
     }

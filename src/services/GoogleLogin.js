@@ -1,14 +1,21 @@
 import { config } from "../controllers/config/config.js";
+import { enlacePublico } from "./EnlaceBubble.js";
 
-// Login con Google sin el plugin de Bubble. El botón (o One Tap) de la página
-// le pide a Google un token y lo manda aquí. Validamos el token con Google y
-// le pedimos al backend workflow google_login de Bubble que cree la cuenta si
-// no existe y le asigne una contraseña temporal. La página inicia sesión con
-// esa contraseña ("Log the user in"), así que la sesión queda en dotcasa.com.mx.
+// Login con Google sin salir de dotcasa.com.mx y sin el plugin de Bubble. El
+// botón (o One Tap) de la página le pide a Google un token y lo manda aquí.
+// Validamos el token con Google y le pedimos al backend workflow google_enlace
+// de Bubble que cree la cuenta si no existe y arme un magic link de un solo
+// uso. La página navega a ese link y Bubble inicia la sesión en dotcasa.com.mx.
+//
+// Aquí nunca sale una contraseña: el workflow ya no toca la del usuario.
+//
+// Si esto falla (Bubble sin google_enlace, token rechazado, etc.) la página
+// usa el respaldo: el puente por app.dotcasa.com.mx (PuenteLogin.js).
 //
 // Necesita el secreto BUBBLE_API_TOKEN (Settings > API de Bubble), porque
-// google_login solo acepta llamadas autenticadas.
+// google_enlace solo acepta llamadas autenticadas.
 const RUTA = "/__dotcasa/google";
+const WORKFLOW = "google_enlace";
 const EMISORES = ["accounts.google.com", "https://accounts.google.com"];
 
 const respuesta = (datos, status = 200) =>
@@ -82,18 +89,32 @@ export const GoogleLogin = {
       new URL(request.url).searchParams.get("v") === "test"
         ? "/version-test"
         : "";
-    const bubble = new URL(env.BUBBLE_BASE_URL).origin;
-    const j = await consultar(bubble + version + "/api/1.1/wf/google_login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + env.BUBBLE_API_TOKEN,
+    const bubble = new URL(env.BUBBLE_BASE_URL);
+    const res = await fetch(
+      bubble.origin + version + "/api/1.1/wf/" + WORKFLOW,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + env.BUBBLE_API_TOKEN,
+        },
+        body: JSON.stringify(usuario),
       },
-      body: JSON.stringify(usuario),
-    }).catch(() => null);
-    const password = j?.response?.password;
-    if (!password) return respuesta({ error: "bubble" }, 502);
+    ).catch(() => null);
+    if (!res) return respuesta({ error: "red" }, 502);
+    // 404 = esta versión de Bubble todavía no tiene google_enlace.
+    if (!res.ok) return respuesta({ error: "bubble_" + res.status }, 502);
+    const json = await res.json().catch(() => null);
+    const datosBubble = json?.response || {};
+    // Nunca escribimos el link en el log: sirve para entrar a la cuenta.
+    console.log(WORKFLOW, {
+      status: res.status,
+      campos: Object.keys(datosBubble),
+    });
+    if (!datosBubble.link) return respuesta({ error: "sin_link" }, 502);
 
-    return respuesta({ email: j.response.email || usuario.email, password });
+    const link = enlacePublico(datosBubble.link, bubble, version);
+    if (!link) return respuesta({ error: "link_ajeno" }, 502);
+    return respuesta({ link });
   },
 };
