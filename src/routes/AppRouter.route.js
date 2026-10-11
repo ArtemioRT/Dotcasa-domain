@@ -54,13 +54,15 @@ export class AppRouter {
     // El navegador cree que la app vive en dotcasa.com.mx (ver conHostPublico),
     // pero Bubble solo acepta llamadas de su propio dominio: registro, login y
     // demás acciones de servidor fallan con su error genérico. Le mandamos
-    // Origin, Referer y las URLs del cuerpo con el host de Bubble.
+    // Origin, Referer, X-Bubble-R y las URLs del cuerpo con el host de Bubble.
+    // X-Bubble-R es la dirección de la página que manda el cliente de Bubble en
+    // cada llamada; si no coincide con Origin/Referer, cerrar sesión falla.
     const comoBubble = async (init, baseUrl) => {
       const publico = new URL(request.url).origin;
       if (publico === baseUrl.origin) return;
       const aBubble = (s) => s.split(publico).join(baseUrl.origin);
 
-      for (const nombre of ["Origin", "Referer"]) {
+      for (const nombre of ["Origin", "Referer", "X-Bubble-R"]) {
         const valor = init.headers.get(nombre);
         if (valor && valor.startsWith(publico))
           init.headers.set(nombre, aBubble(valor));
