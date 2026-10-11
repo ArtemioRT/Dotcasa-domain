@@ -5,6 +5,11 @@ import { FichaSeo } from "../services/FichaSeo.js";
 import { InicioSeo } from "../services/InicioSeo.js";
 import { GoogleLogin } from "../services/GoogleLogin.js";
 import { PuenteLogin } from "../services/PuenteLogin.js";
+import {
+  repetidas,
+  deSesion,
+  borrarVieja,
+} from "../services/CookiesViejas.js";
 import { SitemapRoute } from "./SiteMap.route.js";
 
 export class AppRouter {
@@ -87,7 +92,14 @@ export class AppRouter {
       const location = res.headers.get("Location");
       const cookies = res.headers.getSetCookie();
       const cookieConDominio = cookies.some((c) => /;\s*domain=/i.test(c));
-      if (!location && !cookieConDominio) return res;
+      // Copias viejas (domain=dotcasa.com.mx) que hay que borrar: las de las
+      // cookies de sesión que Bubble pone ahora y las que el navegador mandó
+      // repetidas. Ver CookiesViejas.js.
+      const viejas = new Set([
+        ...(cookieConDominio ? deSesion(cookies) : []),
+        ...repetidas(request.headers.get("Cookie")),
+      ]);
+      if (!location && !cookieConDominio && !viejas.size) return res;
 
       const out = new Response(res.body, res);
       if (location) {
@@ -98,8 +110,14 @@ export class AppRouter {
           out.headers.set("Location", destino.toString());
         }
       }
-      if (cookieConDominio) {
+      if (cookieConDominio || viejas.size) {
         out.headers.delete("Set-Cookie");
+        // Primero se borra la copia vieja y después va la cookie nueva.
+        for (const nombre of viejas)
+          out.headers.append(
+            "Set-Cookie",
+            borrarVieja(nombre, publico.hostname),
+          );
         for (const c of cookies)
           out.headers.append("Set-Cookie", c.replace(/;\s*domain=[^;]*/i, ""));
       }
