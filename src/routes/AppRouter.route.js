@@ -301,12 +301,19 @@ export class AppRouter {
     if (config.OPS.has(primero)) {
       if (norm.length > 4) return noEncontrado();
       if (!esCanonica) return redirigir(canonica);
-      // Mientras Bubble no tenga la ruta "venta", seguimos mandando a /casa/venta
+      // Si todavía no hay ruta "/venta" (o "/renta", "/preventa") con
+      // propiedades, se abre el listado general filtrado por esa operación.
+      // Antes se mandaba a "/casa/venta", lo que agregaba "casa" a los tipos
+      // que la persona hubiera elegido (?tipo=departamento,terreno).
       if (
         norm.length === 1 &&
         !(await BubbleManager.rutaExiste(primero, request, env))
-      )
-        return redirigir("/casa/" + primero);
+      ) {
+        const filtros = new URLSearchParams(url.search);
+        filtros.set("operacion", primero);
+        const qs = filtros.toString().replace(/%2C/gi, ",");
+        return Response.redirect(url.origin + "/propiedades?" + qs, 302);
+      }
       return listado(norm.join("-"));
     }
 
