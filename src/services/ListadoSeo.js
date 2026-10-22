@@ -196,10 +196,11 @@ export const ListadoSeo = {
       // En el navegador la página de Bubble no ocupa lugar en el flujo del
       // body, así que el bloque se pintaba arriba, encimado con el header y
       // los filtros. Se oculta mientras Bubble dibuja y luego se mueve al
-      // final de la página de Bubble (después del footer) y se vuelve a
+      // final de la página de Bubble (después del footer; Bubble acomoda a los
+      // hijos con la propiedad CSS order, por eso order alto) y se vuelve a
       // mostrar. Si no encuentra la página de Bubble en 10 s se queda oculto.
       // Quien no ejecuta JavaScript lo ve tal cual en el HTML.
-      `<script>(function(){var s=document.getElementById("dotcasa-listado");if(!s)return;s.style.display="none";var h=s.querySelector("h1");if(h){var n=document.createElement("h2");n.innerHTML=h.innerHTML;n.style.cssText=h.style.cssText;h.replaceWith(n)}var t=0,i=setInterval(function(){var p=document.querySelector(".bubble-element.Page")||document.querySelector("body>.bubble-element");if(p&&p.children.length){clearInterval(i);p.appendChild(s);s.style.display="";s.style.width="100%";s.style.boxSizing="border-box"}else if(++t>100){clearInterval(i)}},100)})()</script>`;
+      `<script>(function(){var s=document.getElementById("dotcasa-listado");if(!s)return;s.style.display="none";var h=s.querySelector("h1");if(h){var n=document.createElement("h2");n.innerHTML=h.innerHTML;n.style.cssText=h.style.cssText;h.replaceWith(n)}var t=0,i=setInterval(function(){var p=document.querySelector(".bubble-element.Page")||document.querySelector("body>.bubble-element");if(p&&p.children.length){clearInterval(i);p.appendChild(s);s.style.order="99999";s.style.display="";s.style.width="100%";s.style.boxSizing="border-box"}else if(++t>100){clearInterval(i)}},100)})()</script>`;
 
     return { titulo, metaDescripcion, cabeza, cuerpo };
   },
