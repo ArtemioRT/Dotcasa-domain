@@ -233,6 +233,19 @@ export class AppRouter {
     const redirigir = (nuevaRuta) =>
       Response.redirect(url.origin + nuevaRuta + url.search, 301);
 
+    // Una sola versión de cada URL: /casas/venta/... (plural) va a
+    // /casa/venta/..., y una colonia duplicada ("monterrey-centro") va a la
+    // oficial ("centro"). Ver config.PLURALES y config.COLONIAS_IGUALES.
+    {
+      const nueva = Utils.rutaOficial(norm);
+      if (nueva !== norm) {
+        // En la ficha el último segmento (su slug) se deja tal cual
+        if (config.TIPOS.has(nueva[0]) && nueva.length === 6)
+          nueva[5] = parts[5];
+        return redirigir("/" + nueva.join("/"));
+      }
+    }
+
     // Se ve la página 404 de Bubble, pero con estado 404 para que Google no
     // la indexe como si fuera una página real.
     const noEncontrado = () =>
@@ -292,11 +305,11 @@ export class AppRouter {
       const ruta = await BubbleManager.resolverRuta(slug, request, env);
       if (!ruta) return noEncontrado();
       const real = ruta[config.BUBBLE.API_CAMPO_SLUG];
-      const [res, props] = await Promise.all([
+      const conDatos = request.method === "GET" && ruta._id;
+      const [res, props, hijas] = await Promise.all([
         proxyRequest("/buscador/" + encodeURIComponent(real)),
-        request.method === "GET" && ruta._id
-          ? BubbleManager.propiedadesDeRuta(ruta, request, env)
-          : null,
+        conDatos ? BubbleManager.propiedadesDeRuta(ruta, request, env) : null,
+        conDatos ? BubbleManager.rutasHijas(ruta, request, env) : [],
       ]);
       const html = (res.headers.get("Content-Type") || "").startsWith(
         "text/html",
@@ -307,6 +320,7 @@ export class AppRouter {
         ruta,
         props,
         "https://" + config.DOMINIO + url.pathname,
+        hijas,
       );
       const out = new Response(ListadoSeo.inyectar(res, datos).body, res);
       // Para revisar en el navegador (Network) si se armó la lista de fichas

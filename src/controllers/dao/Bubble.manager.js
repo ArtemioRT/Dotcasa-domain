@@ -243,6 +243,19 @@ export class BubbleManager {
           constraint_type: "equals",
           value: ruta[deRuta],
         });
+    // Colonia oficial: también las propiedades que traen el nombre duplicado
+    // (config.COLONIAS_IGUALES) mientras no se corrijan en Bubble.
+    if (ruta.colonia) {
+      const pre = `${ruta.estado}/${ruta.ciudad}/`;
+      const otras = Object.entries(config.COLONIAS_IGUALES)
+        .filter(([k, v]) => k.startsWith(pre) && v === ruta.colonia)
+        .map(([k]) => k.slice(pre.length));
+      if (otras.length) {
+        const c = constraints.find((x) => x.key === "colonia_slug");
+        c.constraint_type = "in";
+        c.value = [ruta.colonia, ...otras];
+      }
+    }
     if (constraints.length === 1) return null;
 
     const baseUrl = this._getBaseUrl(request, env);
@@ -295,6 +308,65 @@ export class BubbleManager {
       total: lista.length + (recientes.remaining ?? 0),
       desde: barata?.results?.[0]?.Precio ?? null,
     };
+  }
+
+  // Rutas del siguiente nivel de ubicación, con el mismo tipo y operación:
+  // de /casa/venta/nuevo-leon/san-pedro-garza-garcia, sus colonias; de
+  // /casa/venta/nuevo-leon, sus municipios. Solo las que tienen suficientes
+  // propiedades para ser indexables, las de más propiedades primero.
+  // Devuelve [] si no hay o si Bubble no responde.
+  static async rutasHijas(ruta, request, env, cuantas = 40) {
+    const slug = ruta?.[config.BUBBLE.API_CAMPO_SLUG] ?? "";
+    if (!slug || ruta.cp || slug.startsWith("municipio-")) return [];
+    const niveles = ["estado", "ciudad", "colonia"];
+    const nivel = niveles.filter((n) => ruta[n]).length;
+    // Las rutas por ubicación son consecutivas (estado, luego ciudad...)
+    if (
+      nivel === niveles.length ||
+      niveles.slice(0, nivel).some((n) => !ruta[n])
+    )
+      return [];
+    // /tipo/estado/ciudad (sin operación) no baja a colonia
+    if (ruta.tipo && !ruta.operacion && nivel === 2) return [];
+    const vacio = (key) => ({ key, constraint_type: "is_empty" });
+    const igual = (key, value) => ({ key, constraint_type: "equals", value });
+    const constraints = [
+      ruta.tipo ? igual("tipo", ruta.tipo) : vacio("tipo"),
+      ruta.operacion ? igual("operacion", ruta.operacion) : vacio("operacion"),
+      vacio("cp"),
+      ...niveles.slice(0, nivel).map((n) => igual(n, ruta[n])),
+      { key: niveles[nivel], constraint_type: "is_not_empty" },
+      ...niveles.slice(nivel + 1).map(vacio),
+      {
+        key: config.BUBBLE.API_CAMPO_TOTAL,
+        constraint_type: "greater than",
+        value: config.BUBBLE.SITEMAP_MIN_PROPIEDADES - 1,
+      },
+    ];
+    const baseUrl = this._getBaseUrl(request, env);
+    const api = new URL(`/api/1.1/obj/${config.BUBBLE.API_TIPO}`, baseUrl);
+    api.search =
+      `?limit=${cuantas}&sort_field=${config.BUBBLE.API_CAMPO_TOTAL}&descending=true&constraints=` +
+      encodeURIComponent(JSON.stringify(constraints));
+    try {
+      const r = await fetch(api.toString(), {
+        cf: { cacheTtl: config.BUBBLE.CACHE_SEGUNDOS, cacheEverything: true },
+      });
+      if (!r.ok)
+        throw new Error(
+          `Bubble ${r.status}: ${(await r.text()).slice(0, 200)}`,
+        );
+      const lista = (await r.json()).response?.results ?? [];
+      return lista.filter(
+        (h) =>
+          !String(h[config.BUBBLE.API_CAMPO_SLUG] ?? "").startsWith(
+            "municipio-",
+          ),
+      );
+    } catch (e) {
+      Logger.error(`Error trayendo rutas hijas de ${slug}`, e.message);
+      return [];
+    }
   }
 
   static async traerTodo(request, env, tipo, constraints) {
