@@ -11,6 +11,7 @@ import {
   borrarVieja,
 } from "../services/CookiesViejas.js";
 import { SitemapRoute } from "./SiteMap.route.js";
+import { RobotsRoute } from "./Robots.route.js";
 
 export class AppRouter {
   static async route(request, env) {
@@ -211,26 +212,8 @@ export class AppRouter {
       );
     }
 
-    // El robots.txt de Bubble declara el sitemap de app.dotcasa.com.mx (puras
-    // URLs del origen). Se conservan sus reglas pero el sitemap es el nuestro.
-    if (url.pathname === "/robots.txt") {
-      const res = await proxyRequest();
-      const base = res.ok ? await res.text() : "User-agent: *\nAllow: /\n";
-      const reglas = base
-        .split("\n")
-        .filter((l) => !/^\s*sitemap\s*:/i.test(l))
-        .join("\n")
-        .trimEnd();
-      return new Response(
-        `${reglas}\n\nSitemap: https://${config.DOMINIO}/sitemap.xml\n`,
-        {
-          headers: {
-            "content-type": "text/plain; charset=utf-8",
-            "cache-control": "public, max-age=3600",
-          },
-        },
-      );
-    }
+    // robots.txt propio, sin pasar por Bubble (ver Robots.route.js)
+    if (url.pathname === "/robots.txt") return RobotsRoute.handle();
 
     if (url.pathname === "/sitemap.xml") {
       return SitemapRoute.handle(request, env);
