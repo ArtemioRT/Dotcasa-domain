@@ -1,5 +1,6 @@
 import { Logger } from "../../services/utils/logger.js";
 import { config } from "../config/config.js";
+import { Utils } from "../../services/utils/utils.js";
 export class BubbleManager {
   static _getBaseUrl(request, env) {
     return env.BUBBLE_BASE_URL || new URL(request.url).origin;
@@ -40,6 +41,71 @@ export class BubbleManager {
         e.message,
       );
       return true;
+    }
+  }
+
+  // Devuelve el slug real (tal cual está en Bubble) de la ruta que corresponde
+  // a un slug ya normalizado, o null si no existe o no tiene propiedades.
+  // Las rutas de Bubble guardan acentos ("nuevo-león-monterrey") y la URL
+  // pública no ("nuevo-leon-monterrey"); si la búsqueda exacta no la encuentra
+  // se usa un índice normalizado → real de todas las rutas.
+  static async resolverRuta(slug, request, env) {
+    if (await this.rutaExiste(slug, request, env)) return slug;
+    const indice = await this.indiceRutas(request, env);
+    if (!indice) return null;
+    return indice.get(slug) ?? null;
+  }
+
+  static _indice = null;
+  static _indiceHasta = 0;
+
+  static async indiceRutas(request, env) {
+    if (this._indice && Date.now() < this._indiceHasta) return this._indice;
+    const constraints = [
+      {
+        key: config.BUBBLE.API_CAMPO_TOTAL,
+        constraint_type: "greater than",
+        value: 0,
+      },
+    ];
+    const baseUrl = this._getBaseUrl(request, env);
+    const pagina = async (cursor) => {
+      const api = new URL(`/api/1.1/obj/${config.BUBBLE.API_TIPO}`, baseUrl);
+      api.search =
+        "?limit=100&cursor=" +
+        cursor +
+        "&constraints=" +
+        encodeURIComponent(JSON.stringify(constraints));
+      const r = await fetch(api.toString(), {
+        cf: { cacheTtl: 3600, cacheEverything: true },
+      });
+      if (!r.ok) throw new Error("Bubble " + r.status);
+      return (await r.json()).response;
+    };
+    try {
+      // Primera página para saber cuántas hay; las demás en paralelo
+      const primera = await pagina(0);
+      const resultados = [...(primera?.results ?? [])];
+      const total = resultados.length + (primera?.remaining ?? 0);
+      const cursores = [];
+      for (let c = resultados.length; c < total; c += 100) cursores.push(c);
+      const resto = await Promise.all(cursores.map(pagina));
+      for (const p of resto) resultados.push(...(p?.results ?? []));
+
+      const indice = new Map();
+      for (const r of resultados) {
+        const real = r[config.BUBBLE.API_CAMPO_SLUG];
+        if (typeof real === "string" && real) {
+          const clave = Utils.normalizar(real);
+          if (!indice.has(clave)) indice.set(clave, real);
+        }
+      }
+      this._indice = indice;
+      this._indiceHasta = Date.now() + config.BUBBLE.CACHE_SEGUNDOS * 1000;
+      return indice;
+    } catch (e) {
+      Logger.error("Error armando el índice de rutas", e.message);
+      return this._indice; // el anterior, si había
     }
   }
 

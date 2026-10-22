@@ -11,6 +11,7 @@ import {
   borrarVieja,
 } from "../services/CookiesViejas.js";
 import { SitemapRoute } from "./SiteMap.route.js";
+import { urlFicha, idDeSlug } from "../services/UrlFicha.js";
 import { RobotsRoute } from "./Robots.route.js";
 
 export class AppRouter {
@@ -257,29 +258,39 @@ export class AppRouter {
         return s;
       }
     };
-    const idDe = (slug) => sinCodificar(slug).match(/(\d+x\d+)$/)?.[1] ?? null;
+    // Si el slug termina en un ID se busca por ID (una sola consulta, sirve
+    // para la URL nueva, la vieja y cualquier variante); si no, por Slug_text.
     // null = no existe · undefined = Bubble no respondió
-    const buscarPropiedad = async (slug, yaBuscada) => {
-      const p =
-        yaBuscada !== undefined
-          ? await yaBuscada
-          : await BubbleManager.propiedadPorSlug(slug, request, env);
-      if (p !== null) return p;
-      const id = idDe(slug);
-      return id ? BubbleManager.propiedadPorId(id, request, env) : null;
+    const buscarPropiedad = async (slug) => {
+      const id = idDeSlug(slug);
+      if (id) return BubbleManager.propiedadPorId(id, request, env);
+      return BubbleManager.propiedadPorSlug(slug, request, env);
     };
-    // URL pública bonita de la ficha (/tipo/op/estado/ciudad/colonia/slug) o null
+    // URL pública de la ficha: la que arma el Worker (slug limpio) o, si a la
+    // propiedad le faltan campos, su url_publica de Bubble. null si no hay.
     const rutaDeFicha = (p) => {
-      const r = SitemapRoute.canonica(p?.URL_publica ?? p?.url_publica);
+      const r = SitemapRoute.canonica(
+        urlFicha(p) ?? p?.URL_publica ?? p?.url_publica,
+      );
       const n = r ? r.split("/").filter(Boolean) : [];
       return n.length === 6 && config.TIPOS.has(n[0]) ? r : null;
     };
+    // Bubble busca la ficha por su Slug_text exacto
+    const paginaFicha = (p, slugUrl) =>
+      proxyRequest(
+        "/detalle_propiedad/" +
+          (p?.Slug_text ? encodeURIComponent(p.Slug_text) : slugUrl),
+      );
     const mismaRuta = (a, b) => sinCodificar(a) === sinCodificar(b);
 
+    // La URL va sin acentos pero la ruta en Bubble puede tenerlos
+    // ("nuevo-león-monterrey"): a Bubble se le pasa su slug real.
     const listado = async (slug) => {
-      if (!(await BubbleManager.rutaExiste(slug, request, env)))
-        return noEncontrado();
-      return proxyRequest("/buscador/" + slug).then(sinIndexarSiFiltra);
+      const real = await BubbleManager.resolverRuta(slug, request, env);
+      if (!real) return noEncontrado();
+      return proxyRequest("/buscador/" + encodeURIComponent(real)).then(
+        sinIndexarSiFiltra,
+      );
     };
 
     // En la ficha (6 segmentos) el último es el Slug_text de Bubble: se deja
@@ -299,7 +310,8 @@ export class AppRouter {
     const esCanonica = url.pathname === canonica;
 
     if (config.TIPOS.has(primero)) {
-      if (!esCanonica) return redirigir(canonica);
+      // La ficha se valida contra su URL real más abajo (un solo 301)
+      if (!esCanonica && !esFicha) return redirigir(canonica);
       if (norm.length === 1) return listado(primero);
       // Tipo por ubicación, venta y renta juntas: /casa/estado, /casa/estado/municipio
       if (config.ESTADOS.has(norm[1])) {
@@ -316,20 +328,14 @@ export class AppRouter {
       }
 
       if (norm.length === 6) {
-        // La página y la búsqueda van en paralelo (caso normal: el slug existe).
-        const pagina = proxyRequest("/detalle_propiedad/" + parts[5]);
-        pagina.catch(() => {}); // si se redirige no se usa; que no truene
-        const prop = await buscarPropiedad(
-          parts[5],
-          BubbleManager.propiedadPorSlug(parts[5], request, env),
-        );
+        const prop = await buscarPropiedad(parts[5]);
         if (prop === null) return noEncontrado();
         const destino = prop && rutaDeFicha(prop);
         // Slug viejo o inventado, o ubicación que no es la suya: a su URL real
         if (destino && !mismaRuta(destino, url.pathname))
           return redirigir(destino);
 
-        const res = await pagina;
+        const res = await paginaFicha(prop, parts[5]);
         // Existe pero no tiene url_publica bonita: se ve, pero no se indexa
         if (prop && !destino) return noIndexar(res);
         const html = (res.headers.get("Content-Type") || "").startsWith(
