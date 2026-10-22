@@ -170,9 +170,17 @@ export class AppRouter {
         out.headers.set("Content-Type", tipo + "; charset=utf-8");
       if (request.method !== "GET" || res.status !== 200) return out;
 
-      const canonica =
-        "https://" + config.DOMINIO + new URL(request.url).pathname;
+      const ruta = new URL(request.url).pathname;
+      const canonica = "https://" + config.DOMINIO + ruta;
       return conHostPublico(new HTMLRewriter())
+        // Bubble trae <meta id="dotcasa-origen" name="robots" content="noindex">
+        // para que app.dotcasa.com.mx (el origen) no compita con el dominio
+        // público. Aquí se quita, salvo en /version-test, que no debe indexarse.
+        .on("meta#dotcasa-origen", {
+          element: (e) => {
+            if (!ruta.startsWith("/version-test")) e.remove();
+          },
+        })
         .on('link[rel="canonical"]', { element: (e) => e.remove() })
         .on('meta[property="og:url"]', {
           element: (e) => e.setAttribute("content", canonica),
@@ -203,6 +211,27 @@ export class AppRouter {
       );
     }
 
+    // El robots.txt de Bubble declara el sitemap de app.dotcasa.com.mx (puras
+    // URLs del origen). Se conservan sus reglas pero el sitemap es el nuestro.
+    if (url.pathname === "/robots.txt") {
+      const res = await proxyRequest();
+      const base = res.ok ? await res.text() : "User-agent: *\nAllow: /\n";
+      const reglas = base
+        .split("\n")
+        .filter((l) => !/^\s*sitemap\s*:/i.test(l))
+        .join("\n")
+        .trimEnd();
+      return new Response(
+        `${reglas}\n\nSitemap: https://${config.DOMINIO}/sitemap.xml\n`,
+        {
+          headers: {
+            "content-type": "text/plain; charset=utf-8",
+            "cache-control": "public, max-age=3600",
+          },
+        },
+      );
+    }
+
     if (url.pathname === "/sitemap.xml") {
       return SitemapRoute.handle(request, env);
     }
@@ -228,12 +257,41 @@ export class AppRouter {
 
     // Con filtros (?precio_max=..., ?recamaras=...) la página sirve, pero Google
     // solo debe indexar la versión limpia.
-    const sinIndexarSiFiltra = (res) => {
-      if (!url.search) return res;
+    const noIndexar = (res) => {
       const out = new Response(res.body, res);
       out.headers.set("X-Robots-Tag", "noindex, follow");
       return out;
     };
+    const sinIndexarSiFiltra = (res) => (url.search ? noIndexar(res) : res);
+
+    // Fichas: Bubble abre detalle_propiedad con cualquier slug que termine en
+    // un ID real (/detalle_propiedad/x-<ID> da 200), o sea duplicados infinitos.
+    // Se busca la propiedad por Slug_text y, si no aparece, por el ID del final.
+    const sinCodificar = (s) => {
+      try {
+        return decodeURIComponent(s);
+      } catch (e) {
+        return s;
+      }
+    };
+    const idDe = (slug) => sinCodificar(slug).match(/(\d+x\d+)$/)?.[1] ?? null;
+    // null = no existe · undefined = Bubble no respondió
+    const buscarPropiedad = async (slug, yaBuscada) => {
+      const p =
+        yaBuscada !== undefined
+          ? await yaBuscada
+          : await BubbleManager.propiedadPorSlug(slug, request, env);
+      if (p !== null) return p;
+      const id = idDe(slug);
+      return id ? BubbleManager.propiedadPorId(id, request, env) : null;
+    };
+    // URL pública bonita de la ficha (/tipo/op/estado/ciudad/colonia/slug) o null
+    const rutaDeFicha = (p) => {
+      const r = SitemapRoute.canonica(p?.URL_publica ?? p?.url_publica);
+      const n = r ? r.split("/").filter(Boolean) : [];
+      return n.length === 6 && config.TIPOS.has(n[0]) ? r : null;
+    };
+    const mismaRuta = (a, b) => sinCodificar(a) === sinCodificar(b);
 
     const listado = async (slug) => {
       if (!(await BubbleManager.rutaExiste(slug, request, env)))
@@ -275,10 +333,22 @@ export class AppRouter {
       }
 
       if (norm.length === 6) {
-        const [res, prop] = await Promise.all([
-          proxyRequest("/detalle_propiedad/" + parts[5]),
+        // La página y la búsqueda van en paralelo (caso normal: el slug existe).
+        const pagina = proxyRequest("/detalle_propiedad/" + parts[5]);
+        pagina.catch(() => {}); // si se redirige no se usa; que no truene
+        const prop = await buscarPropiedad(
+          parts[5],
           BubbleManager.propiedadPorSlug(parts[5], request, env),
-        ]);
+        );
+        if (prop === null) return noEncontrado();
+        const destino = prop && rutaDeFicha(prop);
+        // Slug viejo o inventado, o ubicación que no es la suya: a su URL real
+        if (destino && !mismaRuta(destino, url.pathname))
+          return redirigir(destino);
+
+        const res = await pagina;
+        // Existe pero no tiene url_publica bonita: se ve, pero no se indexa
+        if (prop && !destino) return noIndexar(res);
         const html = (res.headers.get("Content-Type") || "").startsWith(
           "text/html",
         );
@@ -341,11 +411,16 @@ export class AppRouter {
     if (norm.length === 1 && config.CP_REGEX.test(primero))
       return redirigir("/cp/" + primero);
 
-    // Ficha por la URL vieja /detalle_propiedad/<Slug_text>:
-    // si la propiedad ya tiene url_publica bonita, redirige (301) a ella.
-    if (primero === "detalle-propiedad" && parts.length === 2) {
-      const bonita = await BubbleManager.urlBonita(parts[1], request, env);
-      if (bonita && bonita !== url.pathname) return redirigir(bonita);
+    // Ficha por la URL vieja /detalle_propiedad/<Slug_text o cualquier-cosa-ID>:
+    // si la propiedad tiene url_publica bonita, 301 a ella; si no existe, 404;
+    // si no tiene url bonita (borrador) o Bubble no respondió, se ve sin indexar.
+    if (primero === "detalle-propiedad") {
+      if (parts.length !== 2) return proxyRequest().then(noIndexar);
+      const prop = await buscarPropiedad(parts[1]);
+      if (prop === null) return noEncontrado();
+      const destino = prop && rutaDeFicha(prop);
+      if (destino) return redirigir(destino);
+      return proxyRequest().then(noIndexar);
     }
 
     return proxyRequest();
