@@ -174,8 +174,10 @@ export const ListadoSeo = {
       // En el HTML inicial va como H1. Cuando el navegador ejecuta la página,
       // Bubble dibuja su propio H1 arriba (Current page's ruta's h1) y el
       // script de abajo convierte este en h2 para que no haya dos.
-      `<h1 style="font-size:20px;margin:8px 0">${escaparHtml(h1)}</h1>` +
-      (intro ? `<p style="margin:0 0 8px">${escaparHtml(intro)}</p>` : "") +
+      `<h1 data-arriba style="font-size:20px;margin:8px 0">${escaparHtml(h1)}</h1>` +
+      (intro
+        ? `<p data-arriba style="margin:0 0 8px">${escaparHtml(intro)}</p>`
+        : "") +
       (conteo
         ? `<p style="margin:0 0 16px">Hay ${escaparHtml(conteo)}.</p>`
         : "") +
@@ -194,12 +196,14 @@ export const ListadoSeo = {
         : "") +
       `</section>` +
       // En el navegador el bloque, agregado al final del body, se pinta
-      // encimado con la página de Bubble. Se oculta al cargar y, cuando Bubble
-      // dibuja la página, se mueve al elemento "HTML lugar bloque SEO" de la
-      // página buscador (<div id="dotcasa-listado-slot">, debajo de la lista
-      // de propiedades). Si en 10 s no aparece ese lugar, se queda oculto.
-      // Quien no ejecuta JavaScript lo ve tal cual en el HTML.
-      `<script>(function(){var s=document.getElementById("dotcasa-listado");if(!s)return;s.style.display="none";var h=s.querySelector("h1");if(h){var n=document.createElement("h2");n.innerHTML=h.innerHTML;n.style.cssText=h.style.cssText;h.replaceWith(n)}var t=0,i=setInterval(function(){var p=document.getElementById("dotcasa-listado-slot");if(p){clearInterval(i);p.appendChild(s);s.style.margin="0";s.style.padding="8px 0 24px";s.style.maxWidth="none";s.style.display=""}else if(++t>100){clearInterval(i)}},100)})()</script>`;
+      // encimado con la página de Bubble. Se oculta al cargar, se le quitan el
+      // H1 y la intro (la página buscador ya los muestra arriba, en la tarjeta
+      // de "¡Tenemos N propiedades!": Current page's ruta's h1 / texto_intro) y,
+      // cuando Bubble dibuja la página, se mueve al elemento "HTML lugar bloque
+      // SEO" (<div id="dotcasa-listado-slot">, debajo de la lista de
+      // propiedades). Si en 10 s no aparece ese lugar, se queda oculto.
+      // Quien no ejecuta JavaScript lo ve completo en el HTML.
+      `<script>(function(){var s=document.getElementById("dotcasa-listado");if(!s)return;s.style.display="none";s.querySelectorAll("[data-arriba]").forEach(function(e){e.remove()});var t=0,i=setInterval(function(){var p=document.getElementById("dotcasa-listado-slot");if(p){clearInterval(i);p.appendChild(s);s.style.margin="0";s.style.padding="8px 0 24px";s.style.maxWidth="none";s.style.display=""}else if(++t>100){clearInterval(i)}},100)})()</script>`;
 
     return { titulo, metaDescripcion, cabeza, cuerpo };
   },
