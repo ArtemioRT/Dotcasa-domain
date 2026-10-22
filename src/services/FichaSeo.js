@@ -228,12 +228,22 @@ export const FichaSeo = {
     const breadcrumb = {
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
-      itemListElement: migas.map(([name, ruta], i) => ({
-        "@type": "ListItem",
-        position: i + 1,
-        name,
-        item: base + ruta,
-      })),
+      // Las migas de ubicación y, al final, la ficha misma (Google usa el
+      // último elemento como la página actual).
+      itemListElement: [
+        ...migas.map(([name, ruta], i) => ({
+          "@type": "ListItem",
+          position: i + 1,
+          name,
+          item: base + ruta,
+        })),
+        {
+          "@type": "ListItem",
+          position: migas.length + 1,
+          name: encabezado,
+          item: canonica,
+        },
+      ],
     };
 
     const op = operacion.toLowerCase();
