@@ -19,8 +19,18 @@ export const urlFicha = (p) => {
   if (!config.TIPOS.has(tipo) || !config.OPS.has(op)) return null;
   if (!estado || !ciudad || !colonia) return null;
 
-  const nombre = Utils.slugify(`${tipo} ${op} ${colonia} ${ciudad}`);
-  return `/${tipo}/${op}/${estado}/${ciudad}/${colonia}/${nombre}-${p._id}`;
+  // Si Bubble ya guarda un Slug_text limpio (minúsculas, sin acentos, con el
+  // ID al final) se usa tal cual: así su url_publica y la del Worker son la
+  // misma y los enlaces internos no pasan por un 301. Si no, se arma aquí.
+  const slugBubble = p.Slug_text ?? p.slug_text;
+  const limpio =
+    typeof slugBubble === "string" &&
+    /^[a-z0-9]+(-[a-z0-9]+)*$/.test(slugBubble) &&
+    slugBubble.endsWith("-" + p._id);
+  const final = limpio
+    ? slugBubble
+    : `${Utils.slugify(`${tipo} ${op} ${colonia} ${ciudad}`)}-${p._id}`;
+  return `/${tipo}/${op}/${estado}/${ciudad}/${colonia}/${final}`;
 };
 
 // El unique id de Bubble al final del slug ("...-1765299061895x8484...")
