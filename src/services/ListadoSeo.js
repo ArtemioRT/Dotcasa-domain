@@ -201,9 +201,12 @@ export const ListadoSeo = {
       // de "¡Tenemos N propiedades!": Current page's ruta's h1 / texto_intro) y,
       // cuando Bubble dibuja la página, se mueve al elemento "HTML lugar bloque
       // SEO" (<div id="dotcasa-listado-slot">, debajo de la lista de
-      // propiedades). Si en 10 s no aparece ese lugar, se queda oculto.
+      // propiedades). La ruta de navegación (nav) va aparte, arriba de la
+      // tarjeta "¡Tenemos N propiedades!", en "HTML lugar migas SEO"
+      // (<div id="dotcasa-migas-slot">). Si en 10 s no aparece el lugar de
+      // abajo, el bloque se queda oculto.
       // Quien no ejecuta JavaScript lo ve completo en el HTML.
-      `<script>(function(){var s=document.getElementById("dotcasa-listado");if(!s)return;s.style.display="none";s.querySelectorAll("[data-arriba]").forEach(function(e){e.remove()});var t=0,i=setInterval(function(){var p=document.getElementById("dotcasa-listado-slot");if(p){clearInterval(i);p.appendChild(s);s.style.margin="0";s.style.padding="8px 0 24px";s.style.maxWidth="none";s.style.display=""}else if(++t>100){clearInterval(i)}},100)})()</script>`;
+      `<script>(function(){var s=document.getElementById("dotcasa-listado");if(!s)return;s.style.display="none";s.querySelectorAll("[data-arriba]").forEach(function(e){e.remove()});var m=s.querySelector("nav"),t=0,i=setInterval(function(){var a=document.getElementById("dotcasa-migas-slot"),p=document.getElementById("dotcasa-listado-slot");if(m&&a){a.appendChild(m);m=null}if(p){clearInterval(i);p.appendChild(s);s.style.margin="0";s.style.padding="8px 0 24px";s.style.maxWidth="none";s.style.display=""}else if(++t>100){clearInterval(i)}},100)})()</script>`;
 
     return { titulo, metaDescripcion, cabeza, cuerpo };
   },
