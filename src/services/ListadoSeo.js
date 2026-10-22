@@ -171,7 +171,10 @@ export const ListadoSeo = {
             .join(` <span style="color:#9aa5b1">›</span> `) +
           `</nav>`
         : "") +
-      `<h1 style="font-size:22px;margin:8px 0">${escaparHtml(h1)}</h1>` +
+      // En el HTML inicial va como H1. Cuando el navegador ejecuta la página,
+      // Bubble dibuja su propio H1 arriba (Current page's ruta's h1) y el
+      // script de abajo convierte este en h2 para que no haya dos.
+      `<h1 style="font-size:20px;margin:8px 0">${escaparHtml(h1)}</h1>` +
       (intro ? `<p style="margin:0 0 8px">${escaparHtml(intro)}</p>` : "") +
       (conteo
         ? `<p style="margin:0 0 16px">Hay ${escaparHtml(conteo)}.</p>`
@@ -189,7 +192,8 @@ export const ListadoSeo = {
             ? `<p style="font-size:13px;color:#4a5b6e;margin:8px 0 0">Se muestran ${fichas.length} de ${total}. Usa los filtros de arriba para ver el resto.</p>`
             : "")
         : "") +
-      `</section>`;
+      `</section>` +
+      `<script>(function(){var h=document.querySelector("#dotcasa-listado h1");if(!h)return;var n=document.createElement("h2");n.innerHTML=h.innerHTML;n.style.cssText=h.style.cssText;h.replaceWith(n)})()</script>`;
 
     return { titulo, metaDescripcion, cabeza, cuerpo };
   },
