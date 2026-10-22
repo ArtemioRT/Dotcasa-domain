@@ -58,6 +58,37 @@ export const config = {
   ]),
   CP_REGEX: /^\d{5}$/,
 
+  // Plurales que la gente escribe o enlaza: 301 al singular, que es la URL
+  // oficial (/casas/venta/... -> /casa/venta/...).
+  PLURALES: {
+    casas: "casa",
+    departamentos: "departamento",
+    terrenos: "terreno",
+    ranchos: "rancho",
+    cabanas: "cabana",
+    quintas: "quinta",
+    oficinas: "oficina",
+    "locales-comerciales": "local-comercial",
+    "bodegas-comerciales": "bodega-comercial",
+    "naves-industriales": "nave-industrial",
+    "bodegas-industriales": "bodega-industrial",
+    edificios: "edificio",
+  },
+
+  // Colonias con dos nombres en los datos ("estado/ciudad/colonia": oficial).
+  // La URL con el nombre de la izquierda hace 301 a la oficial. En Bubble hay
+  // que cambiar la Colonia de esas propiedades al nombre oficial para que el
+  // listado de la oficial las incluya.
+  COLONIAS_IGUALES: {
+    "nuevo-leon/monterrey/monterrey-centro": "centro",
+    "nuevo-leon/san-pedro-garza-garcia/jardines-de-campestre":
+      "jardines-del-campestre",
+    "nuevo-leon/santa-catarina/pedregal-la-huasteca": "pedregal-de-la-huasteca",
+    "nuevo-leon/monterrey/real-cumbres": "real-de-cumbres",
+    "nuevo-leon/general-escobedo/puerta-del-norte-fraccionamiento-residencial":
+      "puerta-del-norte-residencial",
+  },
+
   // Páginas fijas de Bubble que van al sitemap (ruta exacta, tal cual)
   PAGINAS_ESTATICAS: [
     "/propiedades",
@@ -74,7 +105,7 @@ export const config = {
     CACHE_SEGUNDOS: 600,
     SITEMAP_MAX_PAGINAS: 50,
     // Rutas (listados) con menos propiedades que esto no van al sitemap
-    SITEMAP_MIN_PROPIEDADES: 2,
+    SITEMAP_MIN_PROPIEDADES: 3,
     API_TIPO_PROP: "propiedades",
     API_CAMPO_SLUGTEXT: "Slug_text",
   },

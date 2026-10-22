@@ -15,7 +15,11 @@ export const urlFicha = (p) => {
   const op = Utils.normalizar(p.operacion_slug ?? "");
   const estado = Utils.normalizar(p.estado_slug ?? "");
   const ciudad = Utils.normalizar(p.ciudad_slug ?? "");
-  const colonia = Utils.normalizar(p.colonia_slug ?? "");
+  const colonia = Utils.coloniaOficial(
+    estado,
+    ciudad,
+    Utils.normalizar(p.colonia_slug ?? ""),
+  );
   if (!config.TIPOS.has(tipo) || !config.OPS.has(op)) return null;
   if (!estado || !ciudad || !colonia) return null;
 

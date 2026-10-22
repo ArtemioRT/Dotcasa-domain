@@ -36,8 +36,9 @@ const recortar = (t, max) =>
 
 export const ListadoSeo = {
   // ruta: registro de Bubble. props: { lista, total, desde } o null.
+  // hijas: rutas del siguiente nivel (colonias de una ciudad, etc.) o [].
   // canonica: URL pública completa del listado.
-  datos(ruta, props, canonica) {
+  datos(ruta, props, canonica, hijas = []) {
     const tipoSlug = ruta.tipo ?? null;
     const opSlug = ruta.operacion ?? null;
     const [tipo, tipoPlural] = TIPOS[tipoSlug] ?? [];
@@ -65,9 +66,22 @@ export const ListadoSeo = {
             : " en México";
     const enOp = op ? ` en ${op}` : " en venta y renta";
 
-    const titulo =
-      limpio(ruta.titulo_seo) ??
-      `${tipoPlural ?? "Propiedades"}${enOp}${lugar} | DotCasa`;
+    // Título de la ruta + cuántas hay: "Casas en venta en Valle Oriente, San
+    // Pedro | 24 disponibles | DotCasa". El conteo solo entra si el título
+    // no pasa de ~70 caracteres (Google corta los largos).
+    const base = (
+      limpio(ruta.titulo_seo) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`
+    ).replace(/\s*\|\s*DotCasa\s*$/i, "");
+    const totalTitulo = props?.total ?? ruta[config.BUBBLE.API_CAMPO_TOTAL];
+    // Si con la marca no cabe, se prefiere el conteo sobre "| DotCasa".
+    const opciones =
+      totalTitulo > 1
+        ? [
+            `${base} | ${totalTitulo} disponibles | DotCasa`,
+            `${base} | ${totalTitulo} disponibles`,
+          ]
+        : [];
+    const titulo = opciones.find((t) => t.length <= 70) ?? `${base} | DotCasa`;
     const h1 =
       limpio(ruta.h1) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`;
     const intro = limpio(ruta.texto_intro);
@@ -155,6 +169,44 @@ export const ListadoSeo = {
       .filter(Boolean)
       .join("");
 
+    // Links al siguiente nivel (de "Casas en venta en San Pedro" a cada
+    // colonia). El regreso al nivel de arriba lo dan las migas.
+    const tituloHijas = colonia
+      ? null
+      : ciudad
+        ? `Colonias en ${ciudad}`
+        : estado
+          ? `Municipios en ${estado}`
+          : cp
+            ? null
+            : "Estados";
+    const hijasLinks = tituloHijas
+      ? hijas
+          .map((r) => {
+            const ruta = SitemapRoute.canonica(r.url_publica);
+            if (!ruta) return null;
+            let nombre = null;
+            try {
+              const els = JSON.parse(r.breadcrumb_json ?? "").itemListElement;
+              nombre = els?.[els.length - 1]?.name ?? null;
+            } catch (e) {}
+            nombre ??= desdeSlug(r.colonia ?? r.ciudad ?? r.estado ?? "");
+            return { ruta, nombre, total: r[config.BUBBLE.API_CAMPO_TOTAL] };
+          })
+          .filter(Boolean)
+      : [];
+    const hijasHtml = hijasLinks.length
+      ? `<h2 style="font-size:17px;margin:24px 0 8px">${escaparHtml(tituloHijas)}</h2>` +
+        `<ul style="margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:14px">` +
+        hijasLinks
+          .map(
+            (h) =>
+              `<li><a href="${escaparHtml(h.ruta)}" ${'style="color:#0089f1;text-decoration:none"'}>${escaparHtml(h.nombre)}</a> <span style="color:#9aa5b1">(${h.total})</span></li>`,
+          )
+          .join("") +
+        `</ul>`
+      : "";
+
     // Bloque visible al final de la página, en el HTML inicial (no se quita
     // con JavaScript: Google indexa la página ya dibujada).
     const link = 'style="color:#0089f1;text-decoration:none"';
@@ -194,6 +246,7 @@ export const ListadoSeo = {
             ? `<p style="font-size:13px;color:#4a5b6e;margin:8px 0 0">Se muestran ${fichas.length} de ${total}. Usa los filtros de arriba para ver el resto.</p>`
             : "")
         : "") +
+      (hijasHtml ? hijasHtml : "") +
       `</section>` +
       // En el navegador el bloque, agregado al final del body, se pinta
       // encimado con la página de Bubble. Se oculta al cargar, se le quitan el

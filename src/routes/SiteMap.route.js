@@ -9,11 +9,13 @@ export class SitemapRoute {
   static canonica(urlPublica) {
     if (!urlPublica) return null;
     const parts = urlPublica.split("/").filter(Boolean);
-    const norm = parts.map(Utils.normalizar);
+    const norm = Utils.rutaOficial(parts.map(Utils.normalizar));
     if (norm.length === 0) return null;
     // Ficha de propiedad: el Slug_text final va tal cual (igual que AppRouter)
     if (config.TIPOS.has(norm[0]) && norm.length === 6)
-      return "/" + [...norm.slice(0, 5), encodeURIComponent(parts[5])].join("/");
+      return (
+        "/" + [...norm.slice(0, 5), encodeURIComponent(parts[5])].join("/")
+      );
     for (let i = 0; i < norm.length; i++)
       if (norm[i] === "cp" && !config.CP_REGEX.test(norm[i + 1] ?? ""))
         return null;
@@ -52,7 +54,8 @@ export class SitemapRoute {
         config.BUBBLE.SITEMAP_MIN_PROPIEDADES
       )
         agregar(r.url_publica);
-    for (const p of props) agregar(urlFicha(p) ?? p.URL_publica ?? p.url_publica);
+    for (const p of props)
+      agregar(urlFicha(p) ?? p.URL_publica ?? p.url_publica);
 
     const urls = ["/", ...config.PAGINAS_ESTATICAS, ...rutasUnicas]
       .map((p) => `  <url><loc>${Utils.escapeXml(origin + p)}</loc></url>`)
