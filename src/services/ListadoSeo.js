@@ -175,7 +175,9 @@ export const ListadoSeo = {
       // Bubble dibuja su propio H1 arriba (Current page's ruta's h1) y el
       // script de abajo convierte este en h2 para que no haya dos.
       `<h1 data-arriba style="font-size:20px;margin:8px 0">${escaparHtml(h1)}</h1>` +
-      (intro ? `<p data-arriba style="margin:0 0 8px">${escaparHtml(intro)}</p>` : "") +
+      (intro
+        ? `<p data-arriba style="margin:0 0 8px">${escaparHtml(intro)}</p>`
+        : "") +
       (conteo
         ? `<p style="margin:0 0 16px">Hay ${escaparHtml(conteo)}.</p>`
         : "") +
