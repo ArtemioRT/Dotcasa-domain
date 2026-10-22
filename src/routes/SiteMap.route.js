@@ -1,6 +1,7 @@
 import { config } from "../controllers/config/config.js";
 import { BubbleManager } from "../controllers/dao/Bubble.manager.js";
 import { Utils } from "../services/utils/utils.js";
+import { urlFicha } from "../services/UrlFicha.js";
 
 export class SitemapRoute {
   // Devuelve la misma ruta canónica que usa AppRouter (sin acentos, minúsculas),
@@ -51,7 +52,7 @@ export class SitemapRoute {
         config.BUBBLE.SITEMAP_MIN_PROPIEDADES
       )
         agregar(r.url_publica);
-    for (const p of props) agregar(p.URL_publica ?? p.url_publica);
+    for (const p of props) agregar(urlFicha(p) ?? p.URL_publica ?? p.url_publica);
 
     const urls = ["/", ...config.PAGINAS_ESTATICAS, ...rutasUnicas]
       .map((p) => `  <url><loc>${Utils.escapeXml(origin + p)}</loc></url>`)
