@@ -2,6 +2,7 @@ import { config } from "../controllers/config/config.js";
 import { BubbleManager } from "../controllers/dao/Bubble.manager.js";
 import { Utils } from "../services/utils/utils.js";
 import { FichaSeo } from "../services/FichaSeo.js";
+import { ListadoSeo } from "../services/ListadoSeo.js";
 import { InicioSeo } from "../services/InicioSeo.js";
 import { GoogleLogin } from "../services/GoogleLogin.js";
 import { PuenteLogin } from "../services/PuenteLogin.js";
@@ -285,12 +286,29 @@ export class AppRouter {
 
     // La URL va sin acentos pero la ruta en Bubble puede tenerlos
     // ("nuevo-león-monterrey"): a Bubble se le pasa su slug real.
+    // Al HTML se le agregan título, descripción, H1, conteo, links a las
+    // fichas y schema (ver ListadoSeo.js).
     const listado = async (slug) => {
-      const real = await BubbleManager.resolverRuta(slug, request, env);
-      if (!real) return noEncontrado();
-      return proxyRequest("/buscador/" + encodeURIComponent(real)).then(
-        sinIndexarSiFiltra,
+      const ruta = await BubbleManager.resolverRuta(slug, request, env);
+      if (!ruta) return noEncontrado();
+      const real = ruta[config.BUBBLE.API_CAMPO_SLUG];
+      const [res, props] = await Promise.all([
+        proxyRequest("/buscador/" + encodeURIComponent(real)),
+        request.method === "GET" && ruta._id
+          ? BubbleManager.propiedadesDeRuta(ruta, request, env)
+          : null,
+      ]);
+      const html = (res.headers.get("Content-Type") || "").startsWith(
+        "text/html",
       );
+      if (request.method !== "GET" || res.status !== 200 || !html || !ruta._id)
+        return sinIndexarSiFiltra(res);
+      const datos = ListadoSeo.datos(
+        ruta,
+        props,
+        "https://" + config.DOMINIO + url.pathname,
+      );
+      return sinIndexarSiFiltra(ListadoSeo.inyectar(res, datos));
     };
 
     // En la ficha (6 segmentos) el último es el Slug_text de Bubble: se deja

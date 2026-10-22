@@ -4,7 +4,7 @@ import { config } from "../controllers/config/config.js";
 // buscadores y las IAs llega sin título, sin H1 y sin texto. Aquí escribimos
 // esos datos de la propiedad directo en el HTML de la ficha.
 
-const TIPOS = {
+export const TIPOS = {
   casa: ["Casa", "Casas", "House"],
   departamento: ["Departamento", "Departamentos", "Apartment"],
   terreno: ["Terreno", "Terrenos", "Accommodation"],
@@ -31,7 +31,11 @@ const TIPOS = {
   edificio: ["Edificio", "Edificios", "Accommodation"],
 };
 
-const OPERACIONES = { venta: "Venta", renta: "Renta", preventa: "Preventa" };
+export const OPERACIONES = {
+  venta: "Venta",
+  renta: "Renta",
+  preventa: "Preventa",
+};
 
 const escaparHtml = (t) =>
   String(t)

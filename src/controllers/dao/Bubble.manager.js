@@ -44,16 +44,54 @@ export class BubbleManager {
     }
   }
 
-  // Devuelve el slug real (tal cual está en Bubble) de la ruta que corresponde
-  // a un slug ya normalizado, o null si no existe o no tiene propiedades.
-  // Las rutas de Bubble guardan acentos ("nuevo-león-monterrey") y la URL
-  // pública no ("nuevo-leon-monterrey"); si la búsqueda exacta no la encuentra
-  // se usa un índice normalizado → real de todas las rutas.
+  // La ruta con ese slug exacto y al menos una propiedad. null = no existe,
+  // undefined = Bubble no respondió.
+  static async rutaPorSlug(slug, request, env) {
+    const baseUrl = this._getBaseUrl(request, env);
+    const api = new URL(`/api/1.1/obj/${config.BUBBLE.API_TIPO}`, baseUrl);
+    api.search =
+      "?limit=1&constraints=" +
+      encodeURIComponent(
+        JSON.stringify([
+          {
+            key: config.BUBBLE.API_CAMPO_SLUG,
+            constraint_type: "equals",
+            value: slug,
+          },
+          {
+            key: config.BUBBLE.API_CAMPO_TOTAL,
+            constraint_type: "greater than",
+            value: 0,
+          },
+        ]),
+      );
+    try {
+      const r = await fetch(api.toString(), {
+        cf: { cacheTtl: config.BUBBLE.CACHE_SEGUNDOS, cacheEverything: true },
+      });
+      if (!r.ok) return undefined;
+      const j = await r.json();
+      return j.response?.results?.[0] ?? null;
+    } catch (e) {
+      Logger.error(`Error leyendo ruta en Bubble (Slug: ${slug})`, e.message);
+      return undefined;
+    }
+  }
+
+  // Devuelve la ruta (el registro completo de Bubble) que corresponde a un
+  // slug ya normalizado, o null si no existe o no tiene propiedades.
+  // Las rutas de Bubble pueden guardar acentos ("nuevo-león-monterrey") y la
+  // URL pública no ("nuevo-leon-monterrey"); si la búsqueda exacta no la
+  // encuentra se usa un índice normalizado → ruta de todas las rutas.
+  // Si Bubble no responde se devuelve { slug } para no mandar a 404 una
+  // página real (la página se ve, solo sin los textos SEO).
   static async resolverRuta(slug, request, env) {
-    if (await this.rutaExiste(slug, request, env)) return slug;
+    const exacta = await this.rutaPorSlug(slug, request, env);
+    if (exacta) return exacta;
     const indice = await this.indiceRutas(request, env);
-    if (!indice) return null;
-    return indice.get(slug) ?? null;
+    if (indice?.has(slug)) return indice.get(slug);
+    if (exacta === undefined) return { [config.BUBBLE.API_CAMPO_SLUG]: slug };
+    return null;
   }
 
   static _indice = null;
@@ -97,7 +135,7 @@ export class BubbleManager {
         const real = r[config.BUBBLE.API_CAMPO_SLUG];
         if (typeof real === "string" && real) {
           const clave = Utils.normalizar(real);
-          if (!indice.has(clave)) indice.set(clave, real);
+          if (!indice.has(clave)) indice.set(clave, r);
         }
       }
       this._indice = indice;
@@ -169,6 +207,84 @@ export class BubbleManager {
     } catch (e) {
       Logger.error(`Error buscando propiedad en Bubble (ID: ${id})`, e.message);
       return undefined;
+    }
+  }
+
+  // Propiedades activas de un listado, con los mismos filtros que usa Bubble
+  // para contar la ruta (actualizar_total_ruta): cada campo de la ruta contra
+  // su *_slug en la propiedad. Devuelve { lista, total, desde } o null si
+  // Bubble no respondió o la ruta tiene un filtro que aquí no se conoce.
+  static async propiedadesDeRuta(ruta, request, env, cuantas = 24) {
+    const campos = {
+      tipo: "tipo_slug",
+      operacion: "operacion_slug",
+      estado: "estado_slug",
+      ciudad: "ciudad_slug",
+      colonia: "colonia_slug",
+      cp: "Codigo_postal",
+    };
+    const slug = ruta?.[config.BUBBLE.API_CAMPO_SLUG] ?? "";
+    // /municipio/x y /tipo/op/fraccionamiento/x filtran por campos que la
+    // ruta no trae en tipo/operacion/estado/...: sin lista para no mostrar
+    // propiedades que no son de esa página.
+    const tipos = [...config.TIPOS].join("|");
+    const ops = [...config.OPS].join("|");
+    const conFiltroDesconocido =
+      slug.startsWith("municipio-") ||
+      new RegExp(`^(${tipos})-(${ops})-fraccionamiento-`).test(slug);
+    if (!slug || conFiltroDesconocido) return null;
+    const constraints = [
+      { key: "Estatus", constraint_type: "equals", value: "Activo" },
+    ];
+    for (const [deRuta, deProp] of Object.entries(campos))
+      if (ruta[deRuta])
+        constraints.push({
+          key: deProp,
+          constraint_type: "equals",
+          value: ruta[deRuta],
+        });
+    if (constraints.length === 1) return null;
+
+    const baseUrl = this._getBaseUrl(request, env);
+    const consulta = async (extra, params) => {
+      const api = new URL(
+        `/api/1.1/obj/${config.BUBBLE.API_TIPO_PROP}`,
+        baseUrl,
+      );
+      api.search =
+        "?" +
+        params +
+        "&constraints=" +
+        encodeURIComponent(JSON.stringify([...constraints, ...extra]));
+      const r = await fetch(api.toString(), {
+        cf: { cacheTtl: config.BUBBLE.CACHE_SEGUNDOS, cacheEverything: true },
+      });
+      if (!r.ok) throw new Error("Bubble " + r.status);
+      return (await r.json()).response;
+    };
+    try {
+      const orden = encodeURIComponent(
+        JSON.stringify([{ sort_field: "Created Date", descending: true }]),
+      );
+      const [recientes, barata] = await Promise.all([
+        consulta(
+          [],
+          `limit=${cuantas}&sort_field=Destacado&descending=true&additional_sort_fields=${orden}`,
+        ),
+        consulta(
+          [{ key: "Precio", constraint_type: "greater than", value: 0 }],
+          "limit=1&sort_field=Precio&descending=false",
+        ),
+      ]);
+      const lista = recientes?.results ?? [];
+      return {
+        lista,
+        total: lista.length + (recientes?.remaining ?? 0),
+        desde: barata?.results?.[0]?.Precio ?? null,
+      };
+    } catch (e) {
+      Logger.error(`Error trayendo propiedades de la ruta ${slug}`, e.message);
+      return null;
     }
   }
 
