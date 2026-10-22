@@ -308,7 +308,13 @@ export class AppRouter {
         props,
         "https://" + config.DOMINIO + url.pathname,
       );
-      return sinIndexarSiFiltra(ListadoSeo.inyectar(res, datos));
+      const out = new Response(ListadoSeo.inyectar(res, datos).body, res);
+      // Para revisar en el navegador (Network) si se armó la lista de fichas
+      out.headers.set(
+        "X-Dotcasa-Listado",
+        props ? `ok ${props.total} propiedades` : "sin lista",
+      );
+      return sinIndexarSiFiltra(out);
     };
 
     // En la ficha (6 segmentos) el último es el Slug_text de Bubble: se deja

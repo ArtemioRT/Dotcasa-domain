@@ -259,33 +259,42 @@ export class BubbleManager {
       const r = await fetch(api.toString(), {
         cf: { cacheTtl: config.BUBBLE.CACHE_SEGUNDOS, cacheEverything: true },
       });
-      if (!r.ok) throw new Error("Bubble " + r.status);
+      if (!r.ok)
+        throw new Error(
+          `Bubble ${r.status}: ${(await r.text()).slice(0, 200)}`,
+        );
       return (await r.json()).response;
     };
-    try {
-      const orden = encodeURIComponent(
-        JSON.stringify([{ sort_field: "Created Date", descending: true }]),
-      );
-      const [recientes, barata] = await Promise.all([
-        consulta(
-          [],
-          `limit=${cuantas}&sort_field=Destacado&descending=true&additional_sort_fields=${orden}`,
-        ),
-        consulta(
-          [{ key: "Precio", constraint_type: "greater than", value: 0 }],
-          "limit=1&sort_field=Precio&descending=false",
-        ),
-      ]);
-      const lista = recientes?.results ?? [];
-      return {
-        lista,
-        total: lista.length + (recientes?.remaining ?? 0),
-        desde: barata?.results?.[0]?.Precio ?? null,
-      };
-    } catch (e) {
-      Logger.error(`Error trayendo propiedades de la ruta ${slug}`, e.message);
+    // Cada consulta por separado: si el orden no le gusta a la Data API se
+    // reintenta sin orden, y si falla la del precio no se pierde la lista.
+    const intentar = async (extra, ...variantes) => {
+      for (const params of variantes) {
+        try {
+          return await consulta(extra, params);
+        } catch (e) {
+          Logger.error(`Propiedades de la ruta ${slug} (${params})`, e.message);
+        }
+      }
       return null;
-    }
+    };
+    const [recientes, barata] = await Promise.all([
+      intentar(
+        [],
+        `limit=${cuantas}&sort_field=Created%20Date&descending=true`,
+        `limit=${cuantas}`,
+      ),
+      intentar(
+        [{ key: "Precio", constraint_type: "greater than", value: 0 }],
+        "limit=1&sort_field=Precio&descending=false",
+      ),
+    ]);
+    if (!recientes) return null;
+    const lista = recientes.results ?? [];
+    return {
+      lista,
+      total: lista.length + (recientes.remaining ?? 0),
+      desde: barata?.results?.[0]?.Precio ?? null,
+    };
   }
 
   static async traerTodo(request, env, tipo, constraints) {
