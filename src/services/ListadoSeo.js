@@ -36,9 +36,8 @@ const recortar = (t, max) =>
 
 export const ListadoSeo = {
   // ruta: registro de Bubble. props: { lista, total, desde } o null.
-  // hijas: rutas del siguiente nivel (colonias de una ciudad, etc.) o [].
   // canonica: URL pública completa del listado.
-  datos(ruta, props, canonica, hijas = []) {
+  datos(ruta, props, canonica) {
     const tipoSlug = ruta.tipo ?? null;
     const opSlug = ruta.operacion ?? null;
     const [tipo, tipoPlural] = TIPOS[tipoSlug] ?? [];
@@ -169,44 +168,6 @@ export const ListadoSeo = {
       .filter(Boolean)
       .join("");
 
-    // Links al siguiente nivel (de "Casas en venta en San Pedro" a cada
-    // colonia). El regreso al nivel de arriba lo dan las migas.
-    const tituloHijas = colonia
-      ? null
-      : ciudad
-        ? `Colonias en ${ciudad}`
-        : estado
-          ? `Municipios en ${estado}`
-          : cp
-            ? null
-            : "Estados";
-    const hijasLinks = tituloHijas
-      ? hijas
-          .map((r) => {
-            const ruta = SitemapRoute.canonica(r.url_publica);
-            if (!ruta) return null;
-            let nombre = null;
-            try {
-              const els = JSON.parse(r.breadcrumb_json ?? "").itemListElement;
-              nombre = els?.[els.length - 1]?.name ?? null;
-            } catch (e) {}
-            nombre ??= desdeSlug(r.colonia ?? r.ciudad ?? r.estado ?? "");
-            return { ruta, nombre, total: r[config.BUBBLE.API_CAMPO_TOTAL] };
-          })
-          .filter(Boolean)
-      : [];
-    const hijasHtml = hijasLinks.length
-      ? `<h2 style="font-size:17px;margin:24px 0 8px">${escaparHtml(tituloHijas)}</h2>` +
-        `<ul style="margin:0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:14px">` +
-        hijasLinks
-          .map(
-            (h) =>
-              `<li><a href="${escaparHtml(h.ruta)}" ${'style="color:#0089f1;text-decoration:none"'}>${escaparHtml(h.nombre)}</a> <span style="color:#9aa5b1">(${h.total})</span></li>`,
-          )
-          .join("") +
-        `</ul>`
-      : "";
-
     // Bloque visible al final de la página, en el HTML inicial (no se quita
     // con JavaScript: Google indexa la página ya dibujada).
     const link = 'style="color:#0089f1;text-decoration:none"';
@@ -246,7 +207,6 @@ export const ListadoSeo = {
             ? `<p style="font-size:13px;color:#4a5b6e;margin:8px 0 0">Se muestran ${fichas.length} de ${total}. Usa los filtros de arriba para ver el resto.</p>`
             : "")
         : "") +
-      (hijasHtml ? hijasHtml : "") +
       `</section>` +
       // En el navegador el bloque, agregado al final del body, se pinta
       // encimado con la página de Bubble. Se oculta al cargar, se le quitan el
