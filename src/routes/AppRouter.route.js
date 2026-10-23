@@ -306,10 +306,9 @@ export class AppRouter {
       if (!ruta) return noEncontrado();
       const real = ruta[config.BUBBLE.API_CAMPO_SLUG];
       const conDatos = request.method === "GET" && ruta._id;
-      const [res, props, hijas] = await Promise.all([
+      const [res, props] = await Promise.all([
         proxyRequest("/buscador/" + encodeURIComponent(real)),
         conDatos ? BubbleManager.propiedadesDeRuta(ruta, request, env) : null,
-        conDatos ? BubbleManager.rutasHijas(ruta, request, env) : [],
       ]);
       const html = (res.headers.get("Content-Type") || "").startsWith(
         "text/html",
@@ -320,7 +319,6 @@ export class AppRouter {
         ruta,
         props,
         "https://" + config.DOMINIO + url.pathname,
-        hijas,
       );
       const out = new Response(ListadoSeo.inyectar(res, datos).body, res);
       // Para revisar en el navegador (Network) si se armó la lista de fichas
