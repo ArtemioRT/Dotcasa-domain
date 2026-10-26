@@ -8,7 +8,7 @@ const titulo = (ruta, props) =>
 test("ciudad: conteo + tipo + operación + ciudad, estado", () => {
   assert.equal(
     titulo({ tipo: "casa", operacion: "venta", estado: "nuevo-leon", ciudad: "monterrey" }, { total: 400, lista: [] }),
-    "400 casas en venta en monterrey nuevo leon",
+    "400 casas en venta en monterrey nuevo leon | DotCasa",
   );
 });
 
@@ -17,7 +17,7 @@ test("nombres de la propiedad en minúsculas y sin acentos", () => {
     { tipo: "departamento", operacion: "renta", estado: "nuevo-leon", ciudad: "san-pedro-garza-garcia" },
     { total: 70, lista: [{ Estado: "Nuevo León", Ciudad: "San Pedro Garza García" }] },
   );
-  assert.equal(t, "70 departamentos en renta en san pedro garza garcia nuevo leon");
+  assert.equal(t, "70 departamentos en renta en san pedro garza garcia nuevo leon | DotCasa");
 });
 
 test("singular con 1 resultado y miles con coma", () => {
