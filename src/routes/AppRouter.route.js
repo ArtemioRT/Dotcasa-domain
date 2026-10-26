@@ -16,6 +16,7 @@ import { SitemapRoute } from "./SiteMap.route.js";
 import { urlFicha, idDeSlug } from "../services/UrlFicha.js";
 import { RobotsRoute } from "./Robots.route.js";
 import { rutaCanonica } from "../services/RutaCanonica.js";
+import { tituloDeRespaldo, tituloVacio } from "../services/TituloSeguro.js";
 
 export class AppRouter {
   static async route(request, env) {
@@ -185,6 +186,10 @@ export class AppRouter {
       if (request.method !== "GET" || res.status !== 200) return out;
 
       const ruta = new URL(request.url).pathname;
+      let tituloActual = "";
+      let tituloConTexto = false;
+      const escaparTitulo = (x) =>
+        x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
       const canonica = "https://" + config.DOMINIO + rutaCanonica(ruta);
       return conHostPublico(new HTMLRewriter())
         // Bubble trae <meta id="dotcasa-origen" name="robots" content="noindex">
@@ -193,6 +198,30 @@ export class AppRouter {
         .on("meta#dotcasa-origen", {
           element: (e) => {
             if (!ruta.startsWith("/version-test")) e.remove();
+          },
+        })
+        // El título nunca queda vacío ni en "- DotCasa" (ver TituloSeguro.js).
+        // El texto llega en pedazos: se junta y, en el último, se decide. Si el
+        // <title> no trae texto, el respaldo se pone antes de cerrarlo.
+        .on("title", {
+          element: (e) => {
+            tituloActual = "";
+            tituloConTexto = false;
+            e.onEndTag((fin) => {
+              if (!tituloConTexto)
+                fin.before(escaparTitulo(tituloDeRespaldo(ruta)), {
+                  html: true,
+                });
+            });
+          },
+          text: (t) => {
+            tituloConTexto = true;
+            tituloActual += t.text;
+            if (!t.lastInTextNode) return t.remove();
+            const final = tituloVacio(tituloActual)
+              ? escaparTitulo(tituloDeRespaldo(ruta))
+              : tituloActual;
+            t.replace(final, { html: true });
           },
         })
         .on('link[rel="canonical"]', { element: (e) => e.remove() })
