@@ -47,6 +47,10 @@ export class AppRouter {
         target.hostname = baseUrl.hostname;
         target.port = baseUrl.port;
         init.headers.set("Host", baseUrl.hostname);
+        // Avisa al Worker de app.dotcasa.com.mx (app-redirect/) que esta
+        // llamada es nuestra y no debe redirigirse. Sin secreto no se manda.
+        if (env.ORIGEN_TOKEN)
+          init.headers.set("X-Dotcasa-Origen", env.ORIGEN_TOKEN);
         await comoBubble(init, baseUrl);
       }
 
