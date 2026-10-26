@@ -1,6 +1,8 @@
 export const config = {
   // Dominio público oficial (sin www). www y http redirigen aquí.
   DOMINIO: "dotcasa.com.mx",
+  // Host de Bubble (origen). Sus navegaciones hacen 301 al dominio público.
+  APP_HOST: "app.dotcasa.com.mx",
 
   // Cliente OAuth de Google (público: va en el HTML de la página)
   GOOGLE_CLIENT_ID:
