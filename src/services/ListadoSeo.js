@@ -34,6 +34,17 @@ const pesos = (n) => "$" + Math.round(n).toLocaleString("en-US");
 const recortar = (t, max) =>
   t.length > max ? t.slice(0, max - 3).trimEnd() + "..." : t;
 
+// "San Pedro Garza García, Nuevo León" -> "san pedro garza garcia nuevo leon"
+// (título y H1 del listado: minúsculas, sin acentos ni comas).
+const textoPlano = (t) =>
+  t
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/,/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
 export const ListadoSeo = {
   // ruta: registro de Bubble. props: { lista, total, desde } o null.
   // canonica: URL pública completa del listado.
@@ -83,7 +94,7 @@ export const ListadoSeo = {
     ).replace(/\s*\|\s*DotCasa\s*$/i, "");
     const conConteo =
       totalTitulo > 0
-        ? `${totalTitulo.toLocaleString("en-US")} ${sustantivoTitulo}${enOp}${lugar}`
+        ? `${totalTitulo.toLocaleString("en-US")} ${textoPlano(`${sustantivoTitulo}${enOp}${lugar}`)}`
         : null;
     const titulo = conConteo
       ? `${conConteo} | DotCasa`.length <= 60
