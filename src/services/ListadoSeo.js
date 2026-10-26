@@ -96,11 +96,8 @@ export const ListadoSeo = {
       totalTitulo > 0
         ? `${totalTitulo.toLocaleString("en-US")} ${textoPlano(`${sustantivoTitulo}${enOp}${lugar}`)}`
         : null;
-    const titulo = conConteo
-      ? `${conConteo} | DotCasa`.length <= 60
-        ? `${conConteo} | DotCasa`
-        : conConteo
-      : `${base} | DotCasa`;
+    // Sin la marca: "70 departamentos en renta en san pedro nuevo leon".
+    const titulo = conConteo ?? `${base} | DotCasa`;
     // Mismo texto que el título pero sin la marca: "481 casas en venta en
     // Monterrey, Nuevo León". Sin conteo, el H1 de la ruta de Bubble.
     const h1 =
