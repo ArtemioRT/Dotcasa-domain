@@ -6,6 +6,7 @@ import { ListadoSeo } from "../services/ListadoSeo.js";
 import { InicioSeo } from "../services/InicioSeo.js";
 import { GoogleLogin } from "../services/GoogleLogin.js";
 import { PuenteLogin } from "../services/PuenteLogin.js";
+import { AppRedirect } from "../services/AppRedirect.js";
 import {
   repetidas,
   deSesion,
@@ -17,6 +18,11 @@ import { RobotsRoute } from "./Robots.route.js";
 
 export class AppRouter {
   static async route(request, env) {
+    // app.dotcasa.com.mx (el origen de Bubble): 301 al dominio público o paso
+    // directo. Va primero para que nada del resto del router corra en ese host.
+    const deApp = AppRedirect.handle(request);
+    if (deApp) return deApp;
+
     // Login con Google directo en dotcasa.com.mx
     const entrada = new URL(request.url);
     if (
@@ -47,10 +53,9 @@ export class AppRouter {
         target.hostname = baseUrl.hostname;
         target.port = baseUrl.port;
         init.headers.set("Host", baseUrl.hostname);
-        // Avisa al Worker de app.dotcasa.com.mx (app-redirect/) que esta
-        // llamada es nuestra y no debe redirigirse. Sin secreto no se manda.
-        if (env.ORIGEN_TOKEN)
-          init.headers.set("X-Dotcasa-Origen", env.ORIGEN_TOKEN);
+        // Esta llamada es nuestra: AppRedirect la deja pasar al origen en
+        // lugar de mandarla con 301 al dominio público.
+        init.headers.set(AppRedirect.HEADER_ORIGEN, AppRedirect.VALOR_ORIGEN);
         await comoBubble(init, baseUrl);
       }
 
