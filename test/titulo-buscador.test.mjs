@@ -8,7 +8,7 @@ const titulo = (ruta, props) =>
 test("ciudad: conteo + tipo + operación + ciudad, estado", () => {
   assert.equal(
     titulo({ tipo: "casa", operacion: "venta", estado: "nuevo-leon", ciudad: "monterrey" }, { total: 400, lista: [] }),
-    "400 casas en venta en monterrey nuevo leon | DotCasa",
+    "400 casas en venta en monterrey nuevo leon",
   );
 });
 
