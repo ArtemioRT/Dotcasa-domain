@@ -71,7 +71,7 @@ export const ListadoSeo = {
     // título no pasa de 60 caracteres (Google corta los largos). Sin conteo
     // (ruta vacía o sin dato) se usa el título de la ruta de Bubble.
     const totalTitulo = Number(
-      props?.total ?? ruta[config.BUBBLE.API_CAMPO_TOTAL] ?? 0,
+      props?.total || ruta[config.BUBBLE.API_CAMPO_TOTAL] || 0,
     );
     const sustantivoTitulo = tipo
       ? (totalTitulo === 1 ? tipo : tipoPlural).toLowerCase()
@@ -95,7 +95,7 @@ export const ListadoSeo = {
     const intro = limpio(ruta.texto_intro);
 
     // "24 departamentos en renta en San Jerónimo, Monterrey desde $12,000 MXN"
-    const total = props?.total ?? ruta[config.BUBBLE.API_CAMPO_TOTAL] ?? 0;
+    const total = props?.total || ruta[config.BUBBLE.API_CAMPO_TOTAL] || 0;
     const sustantivo = tipo
       ? (total === 1 ? tipo : tipoPlural).toLowerCase()
       : total === 1
