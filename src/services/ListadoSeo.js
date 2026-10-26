@@ -90,8 +90,11 @@ export const ListadoSeo = {
         ? `${conConteo} | DotCasa`
         : conConteo
       : `${base} | DotCasa`;
+    // Mismo texto que el título pero sin la marca: "481 casas en venta en
+    // Monterrey, Nuevo León". Sin conteo, el H1 de la ruta de Bubble.
     const h1 =
-      limpio(ruta.h1) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`;
+      conConteo ??
+      (limpio(ruta.h1) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`);
     const intro = limpio(ruta.texto_intro);
 
     // "24 departamentos en renta en San Jerónimo, Monterrey desde $12,000 MXN"
