@@ -15,6 +15,7 @@ import {
 import { SitemapRoute } from "./SiteMap.route.js";
 import { urlFicha, idDeSlug } from "../services/UrlFicha.js";
 import { RobotsRoute } from "./Robots.route.js";
+import { rutaCanonica } from "../services/RutaCanonica.js";
 
 export class AppRouter {
   static async route(request, env) {
@@ -168,7 +169,8 @@ export class AppRouter {
     };
 
     // Bubble pone su propio canonical apuntando a app.dotcasa.com.mx; lo
-    // cambiamos por la URL pública sin www. También quitamos X-Powered-By y
+    // cambiamos por la URL pública limpia (sin www, sin parámetros, sin "/" final;
+    // /index es "/"; ver RutaCanonica.js). También quitamos X-Powered-By y
     // declaramos el charset en el header.
     const pulirHtml = (res) => {
       const tipo = res.headers.get("Content-Type") || "";
@@ -183,7 +185,7 @@ export class AppRouter {
       if (request.method !== "GET" || res.status !== 200) return out;
 
       const ruta = new URL(request.url).pathname;
-      const canonica = "https://" + config.DOMINIO + ruta;
+      const canonica = "https://" + config.DOMINIO + rutaCanonica(ruta);
       return conHostPublico(new HTMLRewriter())
         // Bubble trae <meta id="dotcasa-origen" name="robots" content="noindex">
         // para que app.dotcasa.com.mx (el origen) no compita con el dominio
