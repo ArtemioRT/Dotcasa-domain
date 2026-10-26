@@ -8,26 +8,26 @@ const titulo = (ruta, props) =>
 test("ciudad: conteo + tipo + operación + ciudad, estado", () => {
   assert.equal(
     titulo({ tipo: "casa", operacion: "venta", estado: "nuevo-leon", ciudad: "monterrey" }, { total: 400, lista: [] }),
-    "400 casas en venta en Monterrey, Nuevo Leon | DotCasa",
+    "400 casas en venta en monterrey nuevo leon | DotCasa",
   );
 });
 
-test("usa los nombres con acento de la primera propiedad", () => {
+test("nombres de la propiedad en minúsculas y sin acentos", () => {
   const t = titulo(
     { tipo: "departamento", operacion: "renta", estado: "nuevo-leon", ciudad: "san-pedro-garza-garcia" },
     { total: 70, lista: [{ Estado: "Nuevo León", Ciudad: "San Pedro Garza García" }] },
   );
-  assert.equal(t, "70 departamentos en renta en San Pedro Garza García, Nuevo León");
+  assert.equal(t, "70 departamentos en renta en san pedro garza garcia nuevo leon");
 });
 
 test("singular con 1 resultado y miles con coma", () => {
   assert.match(
     titulo({ tipo: "casa", operacion: "venta", estado: "nuevo-leon", ciudad: "apodaca" }, { total: 1, lista: [] }),
-    /^1 casa en venta en Apodaca/,
+    /^1 casa en venta en apodaca/,
   );
   assert.match(
     titulo({ tipo: "casa", operacion: "venta", estado: "nuevo-leon" }, { total: 1253, lista: [] }),
-    /^1,253 casas en venta en Nuevo Leon/,
+    /^1,253 casas en venta en nuevo leon/,
   );
 });
 
