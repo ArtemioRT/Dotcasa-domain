@@ -65,22 +65,31 @@ export const ListadoSeo = {
             : " en México";
     const enOp = op ? ` en ${op}` : " en venta y renta";
 
-    // Título de la ruta + cuántas hay: "Casas en venta en Valle Oriente, San
-    // Pedro | 24 disponibles | DotCasa". El conteo solo entra si el título
-    // no pasa de ~70 caracteres (Google corta los largos).
+    // Título: "400 casas en venta en Monterrey, Nuevo León | DotCasa" o
+    // "70 departamentos en renta en San Pedro Garza García, Nuevo León".
+    // Es el conteo real + tipo + operación + lugar. La marca solo entra si el
+    // título no pasa de 60 caracteres (Google corta los largos). Sin conteo
+    // (ruta vacía o sin dato) se usa el título de la ruta de Bubble.
+    const totalTitulo = Number(
+      props?.total ?? ruta[config.BUBBLE.API_CAMPO_TOTAL] ?? 0,
+    );
+    const sustantivoTitulo = tipo
+      ? (totalTitulo === 1 ? tipo : tipoPlural).toLowerCase()
+      : totalTitulo === 1
+        ? "propiedad"
+        : "propiedades";
     const base = (
       limpio(ruta.titulo_seo) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`
     ).replace(/\s*\|\s*DotCasa\s*$/i, "");
-    const totalTitulo = props?.total ?? ruta[config.BUBBLE.API_CAMPO_TOTAL];
-    // Si con la marca no cabe, se prefiere el conteo sobre "| DotCasa".
-    const opciones =
-      totalTitulo > 1
-        ? [
-            `${base} | ${totalTitulo} disponibles | DotCasa`,
-            `${base} | ${totalTitulo} disponibles`,
-          ]
-        : [];
-    const titulo = opciones.find((t) => t.length <= 70) ?? `${base} | DotCasa`;
+    const conConteo =
+      totalTitulo > 0
+        ? `${totalTitulo.toLocaleString("en-US")} ${sustantivoTitulo}${enOp}${lugar}`
+        : null;
+    const titulo = conConteo
+      ? `${conConteo} | DotCasa`.length <= 60
+        ? `${conConteo} | DotCasa`
+        : conConteo
+      : `${base} | DotCasa`;
     const h1 =
       limpio(ruta.h1) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`;
     const intro = limpio(ruta.texto_intro);
