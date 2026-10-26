@@ -17,7 +17,7 @@ test("nombres de la propiedad en minúsculas y sin acentos", () => {
     { tipo: "departamento", operacion: "renta", estado: "nuevo-leon", ciudad: "san-pedro-garza-garcia" },
     { total: 70, lista: [{ Estado: "Nuevo León", Ciudad: "San Pedro Garza García" }] },
   );
-  assert.equal(t, "70 departamentos en renta en san pedro garza garcia nuevo leon");
+  assert.equal(t, "70 departamentos en renta en san pedro garza garcia nuevo leon | DotCasa");
 });
 
 test("singular con 1 resultado y miles con coma", () => {
