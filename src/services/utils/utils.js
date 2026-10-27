@@ -1,9 +1,10 @@
 import { config } from "../../controllers/config/config.js";
 
 // Último segmento de las rutas con filtro que crea Bubble (crear_ruta_filtro):
-// /3-recamaras, /hasta-1-millon, /hasta-3-millones, /hasta-15-mil
+// /3-recamaras, /hasta-1-millon, /hasta-3-millones, /hasta-15-mil,
+// /desde-5-millones, /desde-30-mil
 export const esSegmentoFiltro = (s) =>
-  /^(?:[1-5]-recamaras|hasta-1-millon|hasta-\d+-millones|hasta-\d+-mil)$/.test(
+  /^(?:[1-5]-recamaras|(?:hasta|desde)-1-millon|(?:hasta|desde)-\d+-millones|(?:hasta|desde)-\d+-mil)$/.test(
     String(s ?? ""),
   );
 

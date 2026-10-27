@@ -38,10 +38,6 @@ const desdeSlug = (s) =>
 const limpio = (t) =>
   typeof t === "string" && t.trim() ? t.replace(/\s+/g, " ").trim() : null;
 
-// Script que agrega a la URL los parámetros que falten, sin recargar.
-export const filtroEnUrl = (parametros) =>
-  `<script>(function(){try{var p=${JSON.stringify(parametros).replace(/</g, "\\u003c")},u=new URL(location.href),s=u.searchParams,c=false;for(var k in p)if(!s.get(k)){s.set(k,p[k]);c=true}if(c)history.replaceState(history.state,"",u.pathname+"?"+s.toString()+u.hash)}catch(e){}})()</script>`;
-
 const pesos = (n) => "$" + Math.round(n).toLocaleString("en-US");
 
 // Migas para las rutas que Bubble crea sin breadcrumb_json (tipo + colonia,
@@ -61,6 +57,9 @@ const migasDeRuta = (ruta, nombres) => {
     const prec = Number(ruta.precio_max);
     if (/^hasta-/.test(seg) && prec > 0)
       return `Hasta ${precioCorto(prec, ruta.operacion)}`;
+    const pmin = Number(ruta.precio_min);
+    if (/^desde-/.test(seg) && pmin > 0)
+      return `Desde ${precioCorto(pmin, ruta.operacion)}`;
     return desdeSlug(seg);
   };
   return partes.map((seg, i) => [
@@ -104,16 +103,22 @@ export const ListadoSeo = {
     // /hasta-3-millones, /hasta-15-mil.
     const recamaras = Number(ruta.recamaras) > 0 ? Number(ruta.recamaras) : null;
     const precioMax = Number(ruta.precio_max) > 0 ? Number(ruta.precio_max) : null;
+    // /desde-5-millones, /desde-30-mil
+    const precioMin = Number(ruta.precio_min) > 0 ? Number(ruta.precio_min) : null;
     const filtroTitulo = recamaras
       ? ` con ${recamaras} ${recamaras === 1 ? "Recámara" : "Recámaras"}`
       : precioMax
         ? ` hasta ${precioCorto(precioMax, opSlug)}`
-        : "";
+        : precioMin
+          ? ` desde ${precioCorto(precioMin, opSlug)}`
+          : "";
     const filtroTexto = recamaras
       ? ` con ${recamaras} ${recamaras === 1 ? "recámara" : "recámaras"}`
       : precioMax
         ? ` de hasta ${precioCorto(precioMax, opSlug)}`
-        : "";
+        : precioMin
+          ? ` desde ${precioCorto(precioMin, opSlug)}`
+          : "";
 
     const total = Number(
       props?.total || ruta[config.BUBBLE.API_CAMPO_TOTAL] || 0,
@@ -181,7 +186,7 @@ export const ListadoSeo = {
     const conConteo =
       total > 0
         ? mejorTitulo(
-            minimo && !precioMax
+            minimo && !precioMax && !precioMin
               ? [
                   ...variantes(desdeTitulo, true),
                   ...variantes(desdeCompacto, true),
@@ -209,7 +214,9 @@ export const ListadoSeo = {
     ];
     const describir = (l) =>
       `Encuentra ${total.toLocaleString("en-US")} ${sustantivo}${enOp}${filtroTexto}${l}.` +
-      (minimo ? ` Precios desde ${precioCorto(minimo, opPrecio)}.` : "") +
+      (minimo && !precioMin
+        ? ` Precios desde ${precioCorto(minimo, opPrecio)}.`
+        : "") +
       " Fotos, ubicación y contacto directo por WhatsApp.";
     const metaDescripcion = recortar(
       total
@@ -323,15 +330,7 @@ export const ListadoSeo = {
       // Quien no ejecuta JavaScript lo ve completo en el HTML.
       `<script>(function(){var s=document.getElementById("dotcasa-listado");if(!s)return;s.style.display="none";s.querySelectorAll("[data-arriba]").forEach(function(e){e.remove()});var m=s.querySelector("nav"),t=0,i=setInterval(function(){var a=document.getElementById("dotcasa-migas-slot"),p=document.getElementById("dotcasa-listado-slot");if(m&&a){a.appendChild(m);m=null}if(p){clearInterval(i);p.appendChild(s);s.style.margin="0";s.style.padding="8px 0 24px";s.style.maxWidth="none";s.style.display=""}else if(++t>100){clearInterval(i)}},100)})()</script>`;
 
-    // Filtro de la ruta (/3-recamaras, /hasta-3-millones) como parámetro de
-    // la URL, que es de donde la página buscador de Bubble lee sus filtros.
-    const parametros = recamaras
-      ? { recamaras: String(recamaras) }
-      : precioMax
-        ? { precio_max: String(precioMax) }
-        : null;
-
-    return { titulo, metaDescripcion, cabeza, cuerpo, parametros };
+    return { titulo, metaDescripcion, cabeza, cuerpo };
   },
 
   inyectar(res, d) {
@@ -358,12 +357,6 @@ export const ListadoSeo = {
       })
       .on("head", {
         element: (e) => {
-          // Bubble lee "Get recamaras from page URL" de la URL con la que
-          // arranca la página: el filtro de la ruta se agrega a la URL antes
-          // de que corra cualquier script de Bubble. DCRutas la vuelve a dejar
-          // como /3-recamaras en cuanto el buscador refleja los filtros.
-          if (d.parametros)
-            e.prepend(filtroEnUrl(d.parametros), { html: true });
           e.onEndTag((fin) => {
             if (!hayTitulo)
               fin.before(`<title>${escaparHtml(d.titulo)}</title>`, {
