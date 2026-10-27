@@ -35,8 +35,8 @@ test("renta: precio al mes", () => {
     { Ciudad: "Monterrey", Colonia: "El Vergel", Precio: 18_000, N_Habitaciones: 3 },
     ["casa", "renta", "nuevo-leon", "monterrey", "el-vergel"],
   );
-  // Con "3 rec" serían 68 caracteres: se quita la recámara y queda el precio
-  assert.equal(d.titulo, "Casa en Renta en El Vergel, Monterrey · $18,000/mes | DotCasa");
+  // Con "3 rec" y la marca serían 68 caracteres: se quita la marca, no las recámaras
+  assert.equal(d.titulo, "Casa en Renta en El Vergel, Monterrey · 3 rec · $18,000/mes");
   assert.match(d.metaDescripcion, /\$18,000 al mes\./);
 });
 
@@ -70,4 +70,13 @@ test("script que mantiene el título aunque Bubble lo cambie", async () => {
   globalThis.MutationObserver = class { observe() {} };
   new Function(s.slice(8, -9))();
   assert.equal(t.title, 'Casa en Venta en "X" </script> | DotCasa');
+});
+
+test("nombre largo: se quita la marca antes que las recámaras", () => {
+  const d = ficha(
+    { Ciudad: "Monterrey", Colonia: "Santa María", Precio: 35_000, N_Habitaciones: 2 },
+    ["departamento", "renta", "nuevo-leon", "monterrey", "santa-maria"],
+  );
+  assert.match(d.titulo, / · 2 rec · /);
+  assert.ok(d.titulo.length <= 65, d.titulo);
 });

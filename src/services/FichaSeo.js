@@ -133,21 +133,31 @@ export const FichaSeo = {
     const encabezado = `${tipo} en ${operacion.toLowerCase()} en ${colonia}, ${ciudad}`;
 
     // Título: "Casa en Venta en Contry, Monterrey · 3 rec · $4.2M | DotCasa".
-    // Si no cabe se acorta en este orden: ciudad corta (San Pedro), sin
-    // recámaras, sin ciudad y, al final, sin precio.
+    // Las recámaras son lo que más se busca después de la zona, así que si no
+    // cabe se acorta en este orden: ciudad corta (San Pedro), precio compacto
+    // ($35K/mes), sin "| DotCasa", sin ciudad; solo al final se quitan las
+    // recámaras y luego el precio.
     const corta = ciudadCorta(ciudadSlug, ciudad);
-    const enTitulo = (lugar, ...extras) =>
+    const enTitulo = (lugar, extras, marca = true) =>
       [`${tipo} en ${operacion} en ${lugar}`, ...extras.filter(Boolean)].join(
         " · ",
-      ) + " | DotCasa";
+      ) + (marca ? " | DotCasa" : "");
     const rec = recamaras && `${recamaras} rec`;
     const precioT = precioCorto(precio, opSlug);
+    const precioC = precioCorto(precio, opSlug, { compacto: true });
+    const lugar = `${colonia}, ${ciudad}`;
+    const lugarCorto = `${colonia}, ${corta}`;
     const titulo = mejorTitulo([
-      enTitulo(`${colonia}, ${ciudad}`, rec, precioT),
-      enTitulo(`${colonia}, ${corta}`, rec, precioT),
-      enTitulo(`${colonia}, ${corta}`, precioT),
-      enTitulo(colonia, precioT),
-      enTitulo(colonia),
+      enTitulo(lugar, [rec, precioT]),
+      enTitulo(lugarCorto, [rec, precioT]),
+      enTitulo(lugarCorto, [rec, precioC]),
+      enTitulo(lugarCorto, [rec, precioT], false),
+      enTitulo(lugarCorto, [rec, precioC], false),
+      enTitulo(colonia, [rec, precioC]),
+      enTitulo(colonia, [rec, precioC], false),
+      enTitulo(lugarCorto, [precioC]),
+      enTitulo(colonia, [precioC]),
+      enTitulo(colonia, []),
     ]);
 
     const medidas = [
