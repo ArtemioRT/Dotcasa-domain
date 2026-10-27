@@ -182,3 +182,10 @@ test("con filtros que no se cuentan aquí: sin precio desde (el número lo corri
   assert.equal(d.titulo, "180 Casas en Venta en Monterrey, Nuevo Leon | DotCasa");
   assert.equal(d.exacto, false);
 });
+
+test("búsqueda con filtros sin resultados: título sin número", () => {
+  assert.equal(
+    titulo({ tipo: "quinta", operacion: "venta", total_propiedades: 0, precio_min: 90_000_000 }, { total: 0, desde: null, lista: [] }),
+    "Quintas en Venta desde $90M en México | DotCasa",
+  );
+});

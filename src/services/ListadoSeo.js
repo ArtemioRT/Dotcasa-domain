@@ -190,8 +190,10 @@ export const ListadoSeo = {
     const desdeCompacto = minimo
       ? ` desde ${precioCorto(minimo, opPrecio, { compacto: true })}`
       : "";
+    // Una búsqueda con filtros sin resultados va sin número:
+    // "Quintas en Venta desde $90M en México".
     const sinMarca = (o, l, d) =>
-      `${total.toLocaleString("en-US")} ${mayusculaInicial(sustantivo)}${o}${filtroTitulo} en ${l}${d}`;
+      `${total > 0 ? total.toLocaleString("en-US") + " " : ""}${mayusculaInicial(sustantivo)}${o}${filtroTitulo} en ${l}${d}`;
     const variantes = (d, marca) =>
       opsTitulo.flatMap((o) =>
         lugares.map((l) => sinMarca(o, l, d) + (marca ? " | DotCasa" : "")),
@@ -199,7 +201,7 @@ export const ListadoSeo = {
     // El precio es lo último que se quita: antes se acorta el lugar, la
     // operación (en mixtas), la renta ($12K/mes) y la marca.
     const conConteo =
-      total > 0
+      total > 0 || filtroTitulo
         ? mejorTitulo(
             minimo && !precioMax && !precioMin && exacto
               ? [
