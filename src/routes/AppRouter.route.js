@@ -261,6 +261,43 @@ export class AppRouter {
       return SitemapRoute.handle(request, env);
     }
 
+    // Título del listado para otra URL del buscador, sin cargar la página: la
+    // persona cambia filtros, el buscador cambia la URL (replaceState) y el
+    // HTML S de Bubble pide aquí el título nuevo. Mismo cálculo que listado().
+    // /__dc/titulo?u=/quinta/venta%3Fprecio_min%3D5000000
+    //   -> { "titulo": "15 Quintas en Venta desde $5M en México | DotCasa", "exacto": true }
+    if (url.pathname === "/__dc/titulo") {
+      const responder = (cuerpo, status = 200) =>
+        new Response(JSON.stringify(cuerpo), {
+          status,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Cache-Control": "public, max-age=60",
+            "X-Robots-Tag": "noindex",
+          },
+        });
+      let destino;
+      try {
+        destino = new URL(url.searchParams.get("u") || "/", url.origin);
+      } catch (e) {
+        return responder({ titulo: null }, 400);
+      }
+      const segs = destino.pathname.split("/").filter(Boolean).map(Utils.normalizar);
+      const ruta = segs.length
+        ? await BubbleManager.resolverRuta(segs.join("-"), request, env)
+        : null;
+      if (!ruta?._id) return responder({ titulo: null }, 404);
+      const q = conFiltrosDeQuery(ruta, destino.searchParams);
+      const props = await BubbleManager.propiedadesDeRuta(q.vista, request, env);
+      const d = datosDeListado(
+        ruta,
+        q,
+        props,
+        "https://" + config.DOMINIO + destino.pathname,
+      );
+      return responder({ titulo: d.titulo, exacto: d.exacto });
+    }
+
     const parts = url.pathname.split("/").filter(Boolean);
     if (parts.length === 0)
       return proxyRequest().then((res) =>
@@ -301,6 +338,50 @@ export class AppRouter {
       return out;
     };
     const sinIndexarSiFiltra = (res) => (url.search ? noIndexar(res) : res);
+
+    // Filtros del buscador en la query (utm, gclid, etc. no cuentan). Cuando
+    // la búsqueda no tiene ruta propia (/quinta/venta?precio_min=5000000) el
+    // listado usa la ruta más cercana, que tiene su propio total (20) aunque
+    // la búsqueda dé 15. Precio y recámaras se suman a la ruta para contar
+    // aquí con las mismas reglas que Bubble y el título lleva el conteo real
+    // y el filtro: "15 Quintas en Venta desde $5M en México | DotCasa".
+    // Con otros filtros (?banos=, ?construccion_min=...) el conteo de aquí no
+    // es el de la búsqueda (completa: false): el navegador (HTML S) cambia
+    // el número por el de "¡Tenemos N propiedades!".
+    const FILTROS_QUERY = ["precio_min", "precio_max", "recamaras", "banos",
+      "construccion_min", "construccion_max", "terreno_min", "terreno_max",
+      "antiguedad", "tipo", "operacion", "estado", "ciudad", "colonia", "cp",
+      "tipos", "operaciones", "estados", "ciudades", "colonias"];
+    const conFiltrosDeQuery = (ruta, sp) => {
+      const vista = { ...ruta };
+      let conFiltros = false;
+      let completa = true;
+      for (const k of FILTROS_QUERY) {
+        const v = (sp.get(k) ?? "").trim();
+        if (v === "" || v === "0" || v === "0-0") continue;
+        conFiltros = true;
+        const n = Number(v.replace(/,/g, ""));
+        if (k === "recamaras" && Number.isInteger(n) && n > 0) vista.recamaras = n;
+        else if ((k === "precio_min" || k === "precio_max") && n > 0) vista[k] = n;
+        else completa = false;
+      }
+      return { vista: conFiltros ? vista : ruta, conFiltros, completa };
+    };
+    // Título, descripción, schema... del listado (ver ListadoSeo.js) para la
+    // ruta y los filtros de la query (q, de conFiltrosDeQuery).
+    // exacto: el número del título es el de la búsqueda.
+    const datosDeListado = (ruta, q, props, canonica) => {
+      if (!q.conFiltros || !props)
+        return ListadoSeo.datos(ruta, props, canonica, { exacto: !q.conFiltros });
+      // El total es el de la búsqueda aunque sea 0 (sin esto se usaría el
+      // guardado en la ruta).
+      return ListadoSeo.datos(
+        { ...q.vista, [config.BUBBLE.API_CAMPO_TOTAL]: props.total },
+        props,
+        canonica,
+        { exacto: q.completa },
+      );
+    };
 
     // Fichas: Bubble abre detalle_propiedad con cualquier slug que termine en
     // un ID real (/detalle_propiedad/x-<ID> da 200), o sea duplicados infinitos.
@@ -346,17 +427,19 @@ export class AppRouter {
       if (!ruta) return noEncontrado();
       const real = ruta[config.BUBBLE.API_CAMPO_SLUG];
       const conDatos = request.method === "GET" && ruta._id;
+      const q = conFiltrosDeQuery(ruta, url.searchParams);
       const [res, props] = await Promise.all([
         proxyRequest("/buscador/" + encodeURIComponent(real)),
-        conDatos ? BubbleManager.propiedadesDeRuta(ruta, request, env) : null,
+        conDatos ? BubbleManager.propiedadesDeRuta(q.vista, request, env) : null,
       ]);
       const html = (res.headers.get("Content-Type") || "").startsWith(
         "text/html",
       );
       if (request.method !== "GET" || res.status !== 200 || !html || !ruta._id)
         return sinIndexarSiFiltra(res);
-      const datos = ListadoSeo.datos(
+      const datos = datosDeListado(
         ruta,
+        q,
         props,
         "https://" + config.DOMINIO + url.pathname,
       );

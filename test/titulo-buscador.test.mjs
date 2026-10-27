@@ -149,3 +149,36 @@ test("ruta de precio mínimo: 'desde' del filtro, sin repetir el precio más baj
   assert.doesNotMatch(d.metaDescripcion, /Precios desde/);
   assert.match(d.cabeza, /"name":"Desde \$10M"/);
 });
+
+test("búsqueda sin ruta propia: conteo real y el filtro en el título", () => {
+  const quinta = { tipo: "quinta", operacion: "venta", total_propiedades: 20, precio_min: 5_000_000 };
+  const d = datos(quinta, { total: 15, desde: 5_200_000, lista: [] });
+  assert.equal(d.titulo, "15 Quintas en Venta desde $5M en México | DotCasa");
+  assert.match(d.metaDescripcion, /^Encuentra 15 quintas en venta desde \$5M en México\./);
+});
+
+test("varios filtros a la vez: recámaras y rango de precio", () => {
+  const r = { tipo: "casa", operacion: "venta", estado: "nuevo-leon", recamaras: 3, precio_min: 2_000_000, precio_max: 5_000_000 };
+  assert.equal(
+    titulo(r, { total: 40, desde: 2_100_000, lista: [{ Estado: "Nuevo León" }] }),
+    "40 Casas en Venta con 3 Recámaras de $2M a $5M en Nuevo León | DotCasa",
+  );
+});
+
+test("ruta nacional de precio: /quinta/venta/desde-5-millones", () => {
+  assert.equal(
+    titulo({ tipo: "quinta", operacion: "venta", precio_min: 5_000_000 }, { total: 15, desde: 5_200_000, lista: [] }),
+    "15 Quintas en Venta desde $5M en México | DotCasa",
+  );
+});
+
+test("con filtros que no se cuentan aquí: sin precio desde (el número lo corrige el navegador)", () => {
+  const d = ListadoSeo.datos(
+    { tipo: "casa", operacion: "venta", estado: "nuevo-leon", ciudad: "monterrey" },
+    { total: 180, desde: 1_900_000, lista: [] },
+    "https://dotcasa.com.mx/x",
+    { exacto: false },
+  );
+  assert.equal(d.titulo, "180 Casas en Venta en Monterrey, Nuevo Leon | DotCasa");
+  assert.equal(d.exacto, false);
+});
