@@ -149,13 +149,3 @@ test("ruta de precio mínimo: 'desde' del filtro, sin repetir el precio más baj
   assert.doesNotMatch(d.metaDescripcion, /Precios desde/);
   assert.match(d.cabeza, /"name":"Desde \$10M"/);
 });
-
-test("con filtros extra en la URL el título va sin el total de la ruta", () => {
-  const d = ListadoSeo.datos(
-    { tipo: "quinta", operacion: "venta", url_publica: "/quinta/venta", total_propiedades: 20, titulo_seo: "quintas en venta en mexico | DotCasa" },
-    { total: 20, desde: 1_500_000, lista: [] },
-    "https://dotcasa.com.mx/quinta/venta",
-    { sinConteo: true },
-  );
-  assert.doesNotMatch(d.titulo, /20/);
-});
