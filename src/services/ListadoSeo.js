@@ -2,6 +2,15 @@ import { config } from "../controllers/config/config.js";
 import { TIPOS, OPERACIONES } from "./FichaSeo.js";
 import { urlFicha } from "./UrlFicha.js";
 import { SitemapRoute } from "../routes/SiteMap.route.js";
+import {
+  LIMITE_DESCRIPCION,
+  ciudadCorta,
+  mayusculaInicial,
+  mejorTitulo,
+  precioCorto,
+  recortar,
+  fijarTitulo,
+} from "./TextoSeo.js";
 
 // Las páginas de listado (/departamento/renta/nuevo-leon/monterrey/...) usan
 // la página "buscador" de Bubble, que tiene título y descripción fijos, no
@@ -31,19 +40,30 @@ const limpio = (t) =>
 
 const pesos = (n) => "$" + Math.round(n).toLocaleString("en-US");
 
-const recortar = (t, max) =>
-  t.length > max ? t.slice(0, max - 3).trimEnd() + "..." : t;
-
-// "San Pedro Garza García, Nuevo León" -> "san pedro garza garcia nuevo leon"
-// (título y H1 del listado: minúsculas, sin acentos ni comas).
-const textoPlano = (t) =>
-  t
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/,/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+// Migas para las rutas que Bubble crea sin breadcrumb_json (tipo + colonia,
+// recámaras, precio): un nivel por cada segmento de la URL.
+const migasDeRuta = (ruta, nombres) => {
+  const url = typeof ruta.url_publica === "string" ? ruta.url_publica : "";
+  const partes = url.split("/").filter(Boolean);
+  if (!partes.length) return [];
+  const etiqueta = (seg) => {
+    if (TIPOS[seg]) return TIPOS[seg][1];
+    if (OPERACIONES[seg]) return OPERACIONES[seg];
+    if (seg === ruta.estado) return nombres.estado ?? desdeSlug(seg);
+    if (seg === ruta.ciudad) return nombres.ciudad ?? desdeSlug(seg);
+    if (seg === ruta.colonia) return nombres.colonia ?? desdeSlug(seg);
+    const rec = /^(\d)-recamaras$/.exec(seg);
+    if (rec) return `${rec[1]} ${rec[1] === "1" ? "recámara" : "recámaras"}`;
+    const prec = Number(ruta.precio_max);
+    if (/^hasta-/.test(seg) && prec > 0)
+      return `Hasta ${precioCorto(prec, ruta.operacion)}`;
+    return desdeSlug(seg);
+  };
+  return partes.map((seg, i) => [
+    etiqueta(seg),
+    "https://" + config.DOMINIO + "/" + partes.slice(0, i + 1).join("/"),
+  ]);
+};
 
 export const ListadoSeo = {
   // ruta: registro de Bubble. props: { lista, total, desde } o null.
@@ -76,53 +96,133 @@ export const ListadoSeo = {
             : " en México";
     const enOp = op ? ` en ${op}` : " en venta y renta";
 
-    // Título: "400 casas en venta en Monterrey, Nuevo León | DotCasa" o
-    // "70 departamentos en renta en San Pedro Garza García, Nuevo León".
-    // Es el conteo real + tipo + operación + lugar. La marca solo entra si el
-    // título no pasa de 60 caracteres (Google corta los largos). Sin conteo
-    // (ruta vacía o sin dato) se usa el título de la ruta de Bubble.
-    const totalTitulo = Number(
+    // Rutas con filtro (crear_ruta_filtro en Bubble): /3-recamaras,
+    // /hasta-3-millones, /hasta-15-mil.
+    const recamaras = Number(ruta.recamaras) > 0 ? Number(ruta.recamaras) : null;
+    const precioMax = Number(ruta.precio_max) > 0 ? Number(ruta.precio_max) : null;
+    const filtroTitulo = recamaras
+      ? ` con ${recamaras} ${recamaras === 1 ? "Recámara" : "Recámaras"}`
+      : precioMax
+        ? ` hasta ${precioCorto(precioMax, opSlug)}`
+        : "";
+    const filtroTexto = recamaras
+      ? ` con ${recamaras} ${recamaras === 1 ? "recámara" : "recámaras"}`
+      : precioMax
+        ? ` de hasta ${precioCorto(precioMax, opSlug)}`
+        : "";
+
+    const total = Number(
       props?.total || ruta[config.BUBBLE.API_CAMPO_TOTAL] || 0,
     );
-    const sustantivoTitulo = tipo
-      ? (totalTitulo === 1 ? tipo : tipoPlural).toLowerCase()
-      : totalTitulo === 1
-        ? "propiedad"
-        : "propiedades";
-    const base = (
-      limpio(ruta.titulo_seo) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`
-    ).replace(/\s*\|\s*DotCasa\s*$/i, "");
-    const conConteo =
-      totalTitulo > 0
-        ? `${totalTitulo.toLocaleString("en-US")} ${textoPlano(`${sustantivoTitulo}${enOp}${lugar}`)}`
-        : null;
-    // Con la marca: "70 departamentos en renta en san pedro nuevo leon | DotCasa".
-    const titulo = `${conConteo ?? base} | DotCasa`;
-    // Mismo texto que el título pero sin la marca: "481 casas en venta en
-    // Monterrey, Nuevo León". Sin conteo, el H1 de la ruta de Bubble.
-    const h1 =
-      conConteo ??
-      (limpio(ruta.h1) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`);
-    const intro = limpio(ruta.texto_intro);
-
-    // "24 departamentos en renta en San Jerónimo, Monterrey desde $12,000 MXN"
-    const total = props?.total || ruta[config.BUBBLE.API_CAMPO_TOTAL] || 0;
     const sustantivo = tipo
       ? (total === 1 ? tipo : tipoPlural).toLowerCase()
       : total === 1
         ? "propiedad"
         : "propiedades";
-    const desde = props?.desde ? ` desde ${pesos(props.desde)} MXN` : "";
+    // Precio "desde". Bubble lo guarda en cada ruta (actualizar_total_ruta):
+    // precio_desde_venta (venta y preventa) y precio_desde_renta. Con una
+    // operación se usa el mínimo que el Worker acaba de leer y, si no lo hay
+    // (rutas municipio-, fraccionamiento o Bubble sin responder), el de la
+    // ruta. En rutas de venta y renta juntas va el de venta; si la ruta solo
+    // tiene rentas, el de renta.
+    const numeroRuta = (campo) => {
+      const n = Number(ruta[campo]);
+      return n > 0 ? n : null;
+    };
+    const ventaRuta = numeroRuta("precio_desde_venta");
+    const rentaRuta = numeroRuta("precio_desde_renta");
+    const opPrecio =
+      opSlug ?? (ventaRuta ? "venta" : rentaRuta ? "renta" : null);
+    const minimo = opSlug
+      ? (props?.desde ?? (opSlug === "renta" ? rentaRuta : ventaRuta))
+      : (ventaRuta ?? rentaRuta);
+
+    // Título: "48 Casas en Venta en Colorines, San Pedro desde $9M | DotCasa".
+    // Conteo real + tipo + operación + lugar + precio mínimo. Si no cabe se
+    // prueba con el lugar más corto (sin estado, ciudad corta, sin ciudad) y
+    // luego sin el precio. Sin conteo se usa el título de la ruta de Bubble.
+    const corta = ciudadCorta(ruta.ciudad, ciudad);
+    const lugares = [
+      ...new Set(
+        colonia
+          ? [`${colonia}, ${ciudad}`, `${colonia}, ${corta}`, colonia]
+          : ciudad
+            ? [`${ciudad}, ${estado}`, ciudad, corta]
+            : estado
+              ? [estado]
+              : cp
+                ? [`CP ${cp}`]
+                : ["México"],
+      ),
+    ];
+    // En rutas mixtas "en Venta y Renta" se puede omitir para que entre el precio.
+    const opsTitulo = op
+      ? [` en ${mayusculaInicial(op)}`]
+      : [" en Venta y Renta", ""];
+    const desdeTitulo = minimo
+      ? ` desde ${precioCorto(minimo, opPrecio)}`
+      : "";
+    // Renta en corto si hace falta para que entre el precio: "$12K/mes"
+    const desdeCompacto = minimo
+      ? ` desde ${precioCorto(minimo, opPrecio, { compacto: true })}`
+      : "";
+    const sinMarca = (o, l, d) =>
+      `${total.toLocaleString("en-US")} ${mayusculaInicial(sustantivo)}${o}${filtroTitulo} en ${l}${d}`;
+    const variantes = (d, marca) =>
+      opsTitulo.flatMap((o) =>
+        lugares.map((l) => sinMarca(o, l, d) + (marca ? " | DotCasa" : "")),
+      );
+    // El precio es lo último que se quita: antes se acorta el lugar, la
+    // operación (en mixtas), la renta ($12K/mes) y la marca.
+    const conConteo =
+      total > 0
+        ? mejorTitulo(
+            minimo && !precioMax
+              ? [
+                  ...variantes(desdeTitulo, true),
+                  ...variantes(desdeCompacto, true),
+                  ...variantes(desdeCompacto, false),
+                  ...variantes("", true),
+                ]
+              : variantes("", true),
+          )
+        : null;
+    const base = (
+      limpio(ruta.titulo_seo) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`
+    ).replace(/\s*\|\s*DotCasa\s*$/i, "");
+    const titulo = conConteo ?? `${base} | DotCasa`;
+    // H1: el título sin la marca. Sin conteo, el H1 de la ruta de Bubble.
+    const h1 = conConteo
+      ? conConteo.replace(/\s*\|\s*DotCasa$/, "")
+      : (limpio(ruta.h1) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`);
+    const intro = limpio(ruta.texto_intro);
+
+    // "24 departamentos en renta en San Jerónimo, Monterrey desde $12,000 MXN"
+    const desde = minimo
+      ? ` desde ${pesos(minimo)} MXN${opPrecio === "renta" ? " al mes" : ""}`
+      : "";
     const conteo = total
-      ? `${total} ${sustantivo}${enOp}${lugar}${desde}`
+      ? `${total} ${sustantivo}${enOp}${filtroTexto}${lugar}${desde}`
       : null;
 
+    // "Encuentra 48 casas en venta en Colorines, San Pedro Garza García.
+    // Precios desde $9M. Fotos, ubicación y contacto directo por WhatsApp."
+    // Si no cabe en 155 se acorta el lugar antes de cortar el texto.
+    const lugaresDescripcion = [
+      ...new Set([lugar, ...lugares.map((l) => ` en ${l}`)]),
+    ];
+    const describir = (l) =>
+      `Encuentra ${total.toLocaleString("en-US")} ${sustantivo}${enOp}${filtroTexto}${l}.` +
+      (minimo ? ` Precios desde ${precioCorto(minimo, opPrecio)}.` : "") +
+      " Fotos, ubicación y contacto directo por WhatsApp.";
     const metaDescripcion = recortar(
-      conteo
-        ? `${conteo}. Fotos, precio y ubicación de cada propiedad en DotCasa.`
+      total
+        ? (lugaresDescripcion
+            .map(describir)
+            .find((t) => t.length <= LIMITE_DESCRIPCION) ??
+            describir(lugaresDescripcion.at(-1)))
         : (limpio(ruta.descripcion_seo) ??
-            `${h1}. Fotos, precio y ubicación en DotCasa.`),
-      160,
+            `${h1}. Fotos, ubicación y contacto directo por WhatsApp.`),
     );
 
     // Migas: las que guarda la ruta (breadcrumb_json); si no sirven, ninguna
@@ -133,6 +233,7 @@ export const ListadoSeo = {
         .filter((i) => i?.name && i?.item)
         .map((i) => [String(i.name), String(i.item)]);
     } catch (e) {}
+    if (!migas.length) migas = migasDeRuta(ruta, { estado, ciudad, colonia });
 
     const fichas = (props?.lista ?? [])
       .map((p) => {
@@ -278,7 +379,7 @@ export const ListadoSeo = {
                 `<meta name="description" content="${escaparHtml(d.metaDescripcion)}">`,
                 { html: true },
               );
-            fin.before(d.cabeza, { html: true });
+            fin.before(d.cabeza + fijarTitulo(d.titulo), { html: true });
           });
         },
       })

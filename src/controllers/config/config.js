@@ -110,5 +110,7 @@ export const config = {
     SITEMAP_MIN_PROPIEDADES: 3,
     API_TIPO_PROP: "propiedades",
     API_CAMPO_SLUGTEXT: "Slug_text",
+    // Precios de venta menores a esto se toman como mal capturados ("desde")
+    PRECIO_MINIMO_VENTA: 100000,
   },
 };
