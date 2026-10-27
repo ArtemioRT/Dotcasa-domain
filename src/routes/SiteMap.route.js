@@ -1,6 +1,6 @@
 import { config } from "../controllers/config/config.js";
 import { BubbleManager } from "../controllers/dao/Bubble.manager.js";
-import { Utils } from "../services/utils/utils.js";
+import { Utils, esSegmentoFiltro } from "../services/utils/utils.js";
 import { urlFicha } from "../services/UrlFicha.js";
 
 export class SitemapRoute {
@@ -12,7 +12,7 @@ export class SitemapRoute {
     const norm = Utils.rutaOficial(parts.map(Utils.normalizar));
     if (norm.length === 0) return null;
     // Ficha de propiedad: el Slug_text final va tal cual (igual que AppRouter)
-    if (config.TIPOS.has(norm[0]) && norm.length === 6)
+    if (config.TIPOS.has(norm[0]) && norm.length === 6 && !esSegmentoFiltro(norm[5]))
       return (
         "/" + [...norm.slice(0, 5), encodeURIComponent(parts[5])].join("/")
       );

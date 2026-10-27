@@ -40,6 +40,31 @@ const limpio = (t) =>
 
 const pesos = (n) => "$" + Math.round(n).toLocaleString("en-US");
 
+// Migas para las rutas que Bubble crea sin breadcrumb_json (tipo + colonia,
+// recámaras, precio): un nivel por cada segmento de la URL.
+const migasDeRuta = (ruta, nombres) => {
+  const url = typeof ruta.url_publica === "string" ? ruta.url_publica : "";
+  const partes = url.split("/").filter(Boolean);
+  if (!partes.length) return [];
+  const etiqueta = (seg) => {
+    if (TIPOS[seg]) return TIPOS[seg][1];
+    if (OPERACIONES[seg]) return OPERACIONES[seg];
+    if (seg === ruta.estado) return nombres.estado ?? desdeSlug(seg);
+    if (seg === ruta.ciudad) return nombres.ciudad ?? desdeSlug(seg);
+    if (seg === ruta.colonia) return nombres.colonia ?? desdeSlug(seg);
+    const rec = /^(\d)-recamaras$/.exec(seg);
+    if (rec) return `${rec[1]} ${rec[1] === "1" ? "recámara" : "recámaras"}`;
+    const prec = Number(ruta.precio_max);
+    if (/^hasta-/.test(seg) && prec > 0)
+      return `Hasta ${precioCorto(prec, ruta.operacion)}`;
+    return desdeSlug(seg);
+  };
+  return partes.map((seg, i) => [
+    etiqueta(seg),
+    "https://" + config.DOMINIO + "/" + partes.slice(0, i + 1).join("/"),
+  ]);
+};
+
 export const ListadoSeo = {
   // ruta: registro de Bubble. props: { lista, total, desde } o null.
   // canonica: URL pública completa del listado.
@@ -70,6 +95,21 @@ export const ListadoSeo = {
             ? ` en el código postal ${cp}`
             : " en México";
     const enOp = op ? ` en ${op}` : " en venta y renta";
+
+    // Rutas con filtro (crear_ruta_filtro en Bubble): /3-recamaras,
+    // /hasta-3-millones, /hasta-15-mil.
+    const recamaras = Number(ruta.recamaras) > 0 ? Number(ruta.recamaras) : null;
+    const precioMax = Number(ruta.precio_max) > 0 ? Number(ruta.precio_max) : null;
+    const filtroTitulo = recamaras
+      ? ` con ${recamaras} ${recamaras === 1 ? "Recámara" : "Recámaras"}`
+      : precioMax
+        ? ` hasta ${precioCorto(precioMax, opSlug)}`
+        : "";
+    const filtroTexto = recamaras
+      ? ` con ${recamaras} ${recamaras === 1 ? "recámara" : "recámaras"}`
+      : precioMax
+        ? ` de hasta ${precioCorto(precioMax, opSlug)}`
+        : "";
 
     const total = Number(
       props?.total || ruta[config.BUBBLE.API_CAMPO_TOTAL] || 0,
@@ -127,7 +167,7 @@ export const ListadoSeo = {
       ? ` desde ${precioCorto(minimo, opPrecio, { compacto: true })}`
       : "";
     const sinMarca = (o, l, d) =>
-      `${total.toLocaleString("en-US")} ${mayusculaInicial(sustantivo)}${o} en ${l}${d}`;
+      `${total.toLocaleString("en-US")} ${mayusculaInicial(sustantivo)}${o}${filtroTitulo} en ${l}${d}`;
     const variantes = (d, marca) =>
       opsTitulo.flatMap((o) =>
         lugares.map((l) => sinMarca(o, l, d) + (marca ? " | DotCasa" : "")),
@@ -137,7 +177,7 @@ export const ListadoSeo = {
     const conConteo =
       total > 0
         ? mejorTitulo(
-            minimo
+            minimo && !precioMax
               ? [
                   ...variantes(desdeTitulo, true),
                   ...variantes(desdeCompacto, true),
@@ -162,7 +202,7 @@ export const ListadoSeo = {
       ? ` desde ${pesos(minimo)} MXN${opPrecio === "renta" ? " al mes" : ""}`
       : "";
     const conteo = total
-      ? `${total} ${sustantivo}${enOp}${lugar}${desde}`
+      ? `${total} ${sustantivo}${enOp}${filtroTexto}${lugar}${desde}`
       : null;
 
     // "Encuentra 48 casas en venta en Colorines, San Pedro Garza García.
@@ -172,7 +212,7 @@ export const ListadoSeo = {
       ...new Set([lugar, ...lugares.map((l) => ` en ${l}`)]),
     ];
     const describir = (l) =>
-      `Encuentra ${total.toLocaleString("en-US")} ${sustantivo}${enOp}${l}.` +
+      `Encuentra ${total.toLocaleString("en-US")} ${sustantivo}${enOp}${filtroTexto}${l}.` +
       (minimo ? ` Precios desde ${precioCorto(minimo, opPrecio)}.` : "") +
       " Fotos, ubicación y contacto directo por WhatsApp.";
     const metaDescripcion = recortar(
@@ -193,6 +233,7 @@ export const ListadoSeo = {
         .filter((i) => i?.name && i?.item)
         .map((i) => [String(i.name), String(i.item)]);
     } catch (e) {}
+    if (!migas.length) migas = migasDeRuta(ruta, { estado, ciudad, colonia });
 
     const fichas = (props?.lista ?? [])
       .map((p) => {

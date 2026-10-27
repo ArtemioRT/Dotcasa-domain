@@ -108,3 +108,34 @@ test("sin conteo cae al título de la ruta", () => {
     "Casas en venta en Monterrey | DotCasa",
   );
 });
+
+test("ruta con recámaras", () => {
+  const d = datos(
+    { tipo: "casa", operacion: "venta", estado: "nuevo-leon", ciudad: "monterrey", recamaras: 3, url_publica: "/casa/venta/nuevo-leon/monterrey/3-recamaras", slug: "casa-venta-nuevo-leon-monterrey-3-recamaras" },
+    { total: 42, desde: 1_900_000, lista: [{ Estado: "Nuevo León", Ciudad: "Monterrey" }] },
+  );
+  // 66 caracteres con la marca: se queda el precio y se quita la marca
+  assert.equal(d.titulo, "42 Casas en Venta con 3 Recámaras en Monterrey desde $1.9M");
+  assert.match(d.metaDescripcion, /^Encuentra 42 casas en venta con 3 recámaras en Monterrey, Nuevo León\. Precios desde \$1\.9M\./);
+  // sin breadcrumb_json: migas armadas con la URL
+  assert.match(d.cabeza, /"name":"3 recámaras","item":"https:\/\/dotcasa\.com\.mx\/casa\/venta\/nuevo-leon\/monterrey\/3-recamaras"/);
+  assert.match(d.cabeza, /"name":"Monterrey"/);
+});
+
+test("ruta de precio máximo: 'hasta' en el título y 'desde' en la descripción", () => {
+  const d = datos(
+    { tipo: "casa", operacion: "venta", estado: "nuevo-leon", ciudad: "monterrey", precio_max: 3_000_000, url_publica: "/casa/venta/nuevo-leon/monterrey/hasta-3-millones" },
+    { total: 60, desde: 1_200_000, lista: [{ Estado: "Nuevo León", Ciudad: "Monterrey" }] },
+  );
+  assert.equal(d.titulo, "60 Casas en Venta hasta $3M en Monterrey, Nuevo León | DotCasa");
+  assert.match(d.metaDescripcion, /casas en venta de hasta \$3M en Monterrey, Nuevo León\. Precios desde \$1\.2M\./);
+});
+
+test("tipo + colonia sin operación", () => {
+  const d = datos(
+    { tipo: "casa", estado: "nuevo-leon", ciudad: "san-pedro-garza-garcia", colonia: "del-valle", url_publica: "/casa/nuevo-leon/san-pedro-garza-garcia/del-valle", precio_desde_venta: 8_500_000 },
+    { total: 9, lista: [{ Estado: "Nuevo León", Ciudad: "San Pedro Garza García", Colonia: "Del Valle" }] },
+  );
+  assert.match(d.titulo, /^9 Casas (en Venta y Renta )?en Del Valle(, San Pedro)? desde \$8\.5M/);
+  assert.match(d.cabeza, /"name":"Del Valle","item":"https:\/\/dotcasa\.com\.mx\/casa\/nuevo-leon\/san-pedro-garza-garcia\/del-valle"/);
+});

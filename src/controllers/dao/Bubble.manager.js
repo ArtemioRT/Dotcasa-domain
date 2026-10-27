@@ -256,6 +256,20 @@ export class BubbleManager {
         c.value = [ruta.colonia, ...otras];
       }
     }
+    // Rutas con filtro (crear_ruta_filtro): mismas reglas que el buscador y
+    // que actualizar_total_ruta en Bubble (recámaras exactas, precio ≤ tope).
+    if (Number(ruta.recamaras) > 0)
+      constraints.push({
+        key: "N_Habitaciones",
+        constraint_type: "equals",
+        value: Number(ruta.recamaras),
+      });
+    if (Number(ruta.precio_max) > 0)
+      constraints.push({
+        key: "Precio",
+        constraint_type: "less than",
+        value: Number(ruta.precio_max) + 1,
+      });
     if (constraints.length === 1) return null;
 
     const baseUrl = this._getBaseUrl(request, env);

@@ -1,6 +1,6 @@
 import { config } from "../controllers/config/config.js";
 import { BubbleManager } from "../controllers/dao/Bubble.manager.js";
-import { Utils } from "../services/utils/utils.js";
+import { Utils, esSegmentoFiltro } from "../services/utils/utils.js";
 import { FichaSeo } from "../services/FichaSeo.js";
 import { ListadoSeo } from "../services/ListadoSeo.js";
 import { InicioSeo } from "../services/InicioSeo.js";
@@ -380,7 +380,8 @@ export class AppRouter {
       return proxyRequest("/buscador").then(sinIndexarSiFiltra);
     }
 
-    const esFicha = config.TIPOS.has(primero) && norm.length === 6;
+    const esFicha =
+      config.TIPOS.has(primero) && norm.length === 6 && !esSegmentoFiltro(norm[5]);
     const canonica =
       "/" + (esFicha ? [...norm.slice(0, 5), parts[5]] : norm).join("/");
     const esCanonica = url.pathname === canonica;
@@ -391,7 +392,8 @@ export class AppRouter {
       if (norm.length === 1) return listado(primero);
       // Tipo por ubicación, venta y renta juntas: /casa/estado, /casa/estado/municipio
       if (config.ESTADOS.has(norm[1])) {
-        if (norm.length > 3) return noEncontrado();
+        // /casa/estado/ciudad/colonia también existe (tipo + colonia)
+        if (norm.length > 4) return noEncontrado();
         return listado(norm.join("-"));
       }
       if (!config.OPS.has(norm[1])) return noEncontrado();
@@ -403,6 +405,9 @@ export class AppRouter {
         return listado(norm.join("-"));
       }
 
+      // /casa/venta/estado/ciudad/colonia/3-recamaras: listado, no ficha
+      if (norm.length === 6 && esSegmentoFiltro(norm[5]))
+        return listado(norm.join("-"));
       if (norm.length === 6) {
         const prop = await buscarPropiedad(parts[5]);
         if (prop === null) return noEncontrado();
