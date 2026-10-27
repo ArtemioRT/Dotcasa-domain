@@ -56,8 +56,12 @@ export const ciudadCorta = (slug, nombre) =>
 // (detalle_propiedad: "... · $$20K | DotCasa"; buscador: el H1 sin marca) y
 // Google indexa la página ya dibujada. Este script deja el título del Worker
 // y lo restaura cada vez que Bubble lo cambia.
-export const fijarTitulo = (titulo) =>
-  `<script>(function(){var t=${JSON.stringify(titulo).replace(/</g, "\\u003c")};function f(){if(document.title!==t)document.title=t}f();new MutationObserver(f).observe(document.head||document.documentElement,{subtree:true,childList:true,characterData:true})})()</script>`;
+// En el buscador el título puede cambiar después (la persona mueve los
+// filtros y la URL cambia): el HTML "HTML S" de Bubble lo cambia con
+// window.__dcTitulo.fijar(nuevo). exacto = el título del Worker ya es el de
+// esta URL con sus filtros (url), así que no hace falta cambiarlo.
+export const fijarTitulo = (titulo, { exacto = true } = {}) =>
+  `<script>(function(){var t=${JSON.stringify(titulo).replace(/</g, "\\u003c")};function f(){if(document.title!==t)document.title=t}window.__dcTitulo={url:location.pathname+location.search,exacto:${exacto ? "true" : "false"},inicial:t,fijar:function(n){if(n){t=String(n);f()}}};f();new MutationObserver(f).observe(document.head||document.documentElement,{subtree:true,childList:true,characterData:true})})()</script>`;
 
 // "Locales comerciales" -> "Locales Comerciales"
 export const mayusculaInicial = (t) =>

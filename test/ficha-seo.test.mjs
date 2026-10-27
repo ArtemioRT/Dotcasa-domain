@@ -68,8 +68,16 @@ test("script que mantiene el título aunque Bubble lo cambie", async () => {
   const t = { title: "" };
   globalThis.document = { get title() { return t.title; }, set title(v) { t.title = v; }, head: {} };
   globalThis.MutationObserver = class { observe() {} };
+  globalThis.window = {};
+  globalThis.location = { pathname: "/quinta/venta", search: "?precio_min=5000000" };
   new Function(s.slice(8, -9))();
   assert.equal(t.title, 'Casa en Venta en "X" </script> | DotCasa');
+  // El buscador lo puede cambiar después (filtros nuevos en la URL)
+  assert.equal(window.__dcTitulo.url, "/quinta/venta?precio_min=5000000");
+  assert.equal(window.__dcTitulo.exacto, true);
+  window.__dcTitulo.fijar("15 Quintas en Venta desde $5M en México | DotCasa");
+  assert.equal(t.title, "15 Quintas en Venta desde $5M en México | DotCasa");
+  assert.match(fijarTitulo("x", { exacto: false }), /exacto:false/);
 });
 
 test("nombre largo: se quita la marca antes que las recámaras", () => {

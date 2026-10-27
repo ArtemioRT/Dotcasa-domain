@@ -71,7 +71,10 @@ const migasDeRuta = (ruta, nombres) => {
 export const ListadoSeo = {
   // ruta: registro de Bubble. props: { lista, total, desde } o null.
   // canonica: URL pública completa del listado.
-  datos(ruta, props, canonica) {
+  // exacto: false si la URL trae filtros que aquí no se pudieron contar
+  // (?banos=, ?construccion_min=...): el título lleva el total de la ruta y
+  // el navegador lo corrige con el conteo real (ver fijarTitulo).
+  datos(ruta, props, canonica, { exacto = true } = {}) {
     const tipoSlug = ruta.tipo ?? null;
     const opSlug = ruta.operacion ?? null;
     const [tipo, tipoPlural] = TIPOS[tipoSlug] ?? [];
@@ -105,20 +108,32 @@ export const ListadoSeo = {
     const precioMax = Number(ruta.precio_max) > 0 ? Number(ruta.precio_max) : null;
     // /desde-5-millones, /desde-30-mil
     const precioMin = Number(ruta.precio_min) > 0 ? Number(ruta.precio_min) : null;
-    const filtroTitulo = recamaras
-      ? ` con ${recamaras} ${recamaras === 1 ? "Recámara" : "Recámaras"}`
-      : precioMax
-        ? ` hasta ${precioCorto(precioMax, opSlug)}`
-        : precioMin
-          ? ` desde ${precioCorto(precioMin, opSlug)}`
-          : "";
-    const filtroTexto = recamaras
-      ? ` con ${recamaras} ${recamaras === 1 ? "recámara" : "recámaras"}`
-      : precioMax
-        ? ` de hasta ${precioCorto(precioMax, opSlug)}`
-        : precioMin
-          ? ` desde ${precioCorto(precioMin, opSlug)}`
-          : "";
+    // Una búsqueda sin ruta propia (?precio_min=...&recamaras=...) puede
+    // traer varios a la vez: "con 3 Recámaras de $2M a $5M".
+    const rango =
+      precioMin && precioMax
+        ? ` de ${precioCorto(precioMin, opSlug)} a ${precioCorto(precioMax, opSlug)}`
+        : null;
+    const filtroTitulo =
+      (recamaras
+        ? ` con ${recamaras} ${recamaras === 1 ? "Recámara" : "Recámaras"}`
+        : "") +
+      (rango ??
+        (precioMax
+          ? ` hasta ${precioCorto(precioMax, opSlug)}`
+          : precioMin
+            ? ` desde ${precioCorto(precioMin, opSlug)}`
+            : ""));
+    const filtroTexto =
+      (recamaras
+        ? ` con ${recamaras} ${recamaras === 1 ? "recámara" : "recámaras"}`
+        : "") +
+      (rango ??
+        (precioMax
+          ? ` de hasta ${precioCorto(precioMax, opSlug)}`
+          : precioMin
+            ? ` desde ${precioCorto(precioMin, opSlug)}`
+            : ""));
 
     const total = Number(
       props?.total || ruta[config.BUBBLE.API_CAMPO_TOTAL] || 0,
@@ -175,8 +190,10 @@ export const ListadoSeo = {
     const desdeCompacto = minimo
       ? ` desde ${precioCorto(minimo, opPrecio, { compacto: true })}`
       : "";
+    // Una búsqueda con filtros sin resultados va sin número:
+    // "Quintas en Venta desde $90M en México".
     const sinMarca = (o, l, d) =>
-      `${total.toLocaleString("en-US")} ${mayusculaInicial(sustantivo)}${o}${filtroTitulo} en ${l}${d}`;
+      `${total > 0 ? total.toLocaleString("en-US") + " " : ""}${mayusculaInicial(sustantivo)}${o}${filtroTitulo} en ${l}${d}`;
     const variantes = (d, marca) =>
       opsTitulo.flatMap((o) =>
         lugares.map((l) => sinMarca(o, l, d) + (marca ? " | DotCasa" : "")),
@@ -184,9 +201,9 @@ export const ListadoSeo = {
     // El precio es lo último que se quita: antes se acorta el lugar, la
     // operación (en mixtas), la renta ($12K/mes) y la marca.
     const conConteo =
-      total > 0
+      total > 0 || filtroTitulo
         ? mejorTitulo(
-            minimo && !precioMax && !precioMin
+            minimo && !precioMax && !precioMin && exacto
               ? [
                   ...variantes(desdeTitulo, true),
                   ...variantes(desdeCompacto, true),
@@ -214,7 +231,7 @@ export const ListadoSeo = {
     ];
     const describir = (l) =>
       `Encuentra ${total.toLocaleString("en-US")} ${sustantivo}${enOp}${filtroTexto}${l}.` +
-      (minimo && !precioMin
+      (minimo && !precioMin && exacto
         ? ` Precios desde ${precioCorto(minimo, opPrecio)}.`
         : "") +
       " Fotos, ubicación y contacto directo por WhatsApp.";
@@ -330,7 +347,7 @@ export const ListadoSeo = {
       // Quien no ejecuta JavaScript lo ve completo en el HTML.
       `<script>(function(){var s=document.getElementById("dotcasa-listado");if(!s)return;s.style.display="none";s.querySelectorAll("[data-arriba]").forEach(function(e){e.remove()});var m=s.querySelector("nav"),t=0,i=setInterval(function(){var a=document.getElementById("dotcasa-migas-slot"),p=document.getElementById("dotcasa-listado-slot");if(m&&a){a.appendChild(m);m=null}if(p){clearInterval(i);p.appendChild(s);s.style.margin="0";s.style.padding="8px 0 24px";s.style.maxWidth="none";s.style.display=""}else if(++t>100){clearInterval(i)}},100)})()</script>`;
 
-    return { titulo, metaDescripcion, cabeza, cuerpo };
+    return { titulo, metaDescripcion, cabeza, cuerpo, exacto };
   },
 
   inyectar(res, d) {
@@ -367,7 +384,10 @@ export const ListadoSeo = {
                 `<meta name="description" content="${escaparHtml(d.metaDescripcion)}">`,
                 { html: true },
               );
-            fin.before(d.cabeza + fijarTitulo(d.titulo), { html: true });
+            fin.before(
+              d.cabeza + fijarTitulo(d.titulo, { exacto: d.exacto !== false }),
+              { html: true },
+            );
           });
         },
       })
