@@ -71,7 +71,9 @@ const migasDeRuta = (ruta, nombres) => {
 export const ListadoSeo = {
   // ruta: registro de Bubble. props: { lista, total, desde } o null.
   // canonica: URL pública completa del listado.
-  datos(ruta, props, canonica) {
+  // sinConteo: la URL trae filtros que la ruta no tiene (?precio_min=...), así
+  // que el total de la ruta no es el de la búsqueda y el título va sin número.
+  datos(ruta, props, canonica, { sinConteo = false } = {}) {
     const tipoSlug = ruta.tipo ?? null;
     const opSlug = ruta.operacion ?? null;
     const [tipo, tipoPlural] = TIPOS[tipoSlug] ?? [];
@@ -120,9 +122,9 @@ export const ListadoSeo = {
           ? ` desde ${precioCorto(precioMin, opSlug)}`
           : "";
 
-    const total = Number(
-      props?.total || ruta[config.BUBBLE.API_CAMPO_TOTAL] || 0,
-    );
+    const total = sinConteo
+      ? 0
+      : Number(props?.total || ruta[config.BUBBLE.API_CAMPO_TOTAL] || 0);
     const sustantivo = tipo
       ? (total === 1 ? tipo : tipoPlural).toLowerCase()
       : total === 1

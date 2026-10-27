@@ -301,6 +301,16 @@ export class AppRouter {
       return out;
     };
     const sinIndexarSiFiltra = (res) => (url.search ? noIndexar(res) : res);
+    // Filtros del buscador en la query (no cuentan utm, gclid, etc.)
+    const FILTROS = ["precio_min", "precio_max", "construccion_min", "construccion_max",
+      "terreno_min", "terreno_max", "antiguedad", "banos", "recamaras", "tipo",
+      "operacion", "estado", "ciudad", "colonia", "cp", "tipos", "operaciones",
+      "estados", "ciudades", "colonias"];
+    const conFiltrosExtra = (u) =>
+      FILTROS.some((k) => {
+        const v = (u.searchParams.get(k) ?? "").trim();
+        return v !== "" && v !== "0" && v !== "0-0";
+      });
 
     // Fichas: Bubble abre detalle_propiedad con cualquier slug que termine en
     // un ID real (/detalle_propiedad/x-<ID> da 200), o sea duplicados infinitos.
@@ -359,6 +369,7 @@ export class AppRouter {
         ruta,
         props,
         "https://" + config.DOMINIO + url.pathname,
+        { sinConteo: conFiltrosExtra(url) },
       );
       const out = new Response(ListadoSeo.inyectar(res, datos).body, res);
       // Para revisar en el navegador (Network) si se armó la lista de fichas
