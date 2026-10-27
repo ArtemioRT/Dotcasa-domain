@@ -297,7 +297,16 @@ export class BubbleManager {
         `limit=${cuantas}`,
       ),
       intentar(
-        [{ key: "Precio", constraint_type: "greater than", value: 0 }],
+        // En venta hay precios mal capturados (12,600 por 12.6 millones, o el
+        // precio por m²): abajo de PRECIO_MINIMO_VENTA no cuentan para el "desde".
+        [
+          {
+            key: "Precio",
+            constraint_type: "greater than",
+            value:
+              ruta.operacion === "renta" ? 0 : config.BUBBLE.PRECIO_MINIMO_VENTA,
+          },
+        ],
         "limit=1&sort_field=Precio&descending=false",
       ),
     ]);
