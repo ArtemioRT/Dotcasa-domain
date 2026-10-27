@@ -139,3 +139,13 @@ test("tipo + colonia sin operación", () => {
   assert.match(d.titulo, /^9 Casas (en Venta y Renta )?en Del Valle(, San Pedro)? desde \$8\.5M/);
   assert.match(d.cabeza, /"name":"Del Valle","item":"https:\/\/dotcasa\.com\.mx\/casa\/nuevo-leon\/san-pedro-garza-garcia\/del-valle"/);
 });
+
+test("ruta de precio mínimo: 'desde' del filtro, sin repetir el precio más bajo", () => {
+  const d = datos(
+    { tipo: "casa", operacion: "venta", estado: "nuevo-leon", ciudad: "monterrey", precio_min: 10_000_000, url_publica: "/casa/venta/nuevo-leon/monterrey/desde-10-millones" },
+    { total: 40, desde: 10_500_000, lista: [{ Estado: "Nuevo León", Ciudad: "Monterrey" }] },
+  );
+  assert.equal(d.titulo, "40 Casas en Venta desde $10M en Monterrey, Nuevo León | DotCasa");
+  assert.doesNotMatch(d.metaDescripcion, /Precios desde/);
+  assert.match(d.cabeza, /"name":"Desde \$10M"/);
+});

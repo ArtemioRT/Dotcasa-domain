@@ -57,6 +57,9 @@ const migasDeRuta = (ruta, nombres) => {
     const prec = Number(ruta.precio_max);
     if (/^hasta-/.test(seg) && prec > 0)
       return `Hasta ${precioCorto(prec, ruta.operacion)}`;
+    const pmin = Number(ruta.precio_min);
+    if (/^desde-/.test(seg) && pmin > 0)
+      return `Desde ${precioCorto(pmin, ruta.operacion)}`;
     return desdeSlug(seg);
   };
   return partes.map((seg, i) => [
@@ -100,16 +103,22 @@ export const ListadoSeo = {
     // /hasta-3-millones, /hasta-15-mil.
     const recamaras = Number(ruta.recamaras) > 0 ? Number(ruta.recamaras) : null;
     const precioMax = Number(ruta.precio_max) > 0 ? Number(ruta.precio_max) : null;
+    // /desde-5-millones, /desde-30-mil
+    const precioMin = Number(ruta.precio_min) > 0 ? Number(ruta.precio_min) : null;
     const filtroTitulo = recamaras
       ? ` con ${recamaras} ${recamaras === 1 ? "Recámara" : "Recámaras"}`
       : precioMax
         ? ` hasta ${precioCorto(precioMax, opSlug)}`
-        : "";
+        : precioMin
+          ? ` desde ${precioCorto(precioMin, opSlug)}`
+          : "";
     const filtroTexto = recamaras
       ? ` con ${recamaras} ${recamaras === 1 ? "recámara" : "recámaras"}`
       : precioMax
         ? ` de hasta ${precioCorto(precioMax, opSlug)}`
-        : "";
+        : precioMin
+          ? ` desde ${precioCorto(precioMin, opSlug)}`
+          : "";
 
     const total = Number(
       props?.total || ruta[config.BUBBLE.API_CAMPO_TOTAL] || 0,
@@ -177,7 +186,7 @@ export const ListadoSeo = {
     const conConteo =
       total > 0
         ? mejorTitulo(
-            minimo && !precioMax
+            minimo && !precioMax && !precioMin
               ? [
                   ...variantes(desdeTitulo, true),
                   ...variantes(desdeCompacto, true),
@@ -205,7 +214,9 @@ export const ListadoSeo = {
     ];
     const describir = (l) =>
       `Encuentra ${total.toLocaleString("en-US")} ${sustantivo}${enOp}${filtroTexto}${l}.` +
-      (minimo ? ` Precios desde ${precioCorto(minimo, opPrecio)}.` : "") +
+      (minimo && !precioMin
+        ? ` Precios desde ${precioCorto(minimo, opPrecio)}.`
+        : "") +
       " Fotos, ubicación y contacto directo por WhatsApp.";
     const metaDescripcion = recortar(
       total

@@ -257,7 +257,8 @@ export class BubbleManager {
       }
     }
     // Rutas con filtro (crear_ruta_filtro): mismas reglas que el buscador y
-    // que actualizar_total_ruta en Bubble (recámaras exactas, precio ≤ tope).
+    // que actualizar_total_ruta en Bubble (recámaras exactas, precio ≤ tope,
+    // precio ≥ mínimo).
     if (Number(ruta.recamaras) > 0)
       constraints.push({
         key: "N_Habitaciones",
@@ -269,6 +270,12 @@ export class BubbleManager {
         key: "Precio",
         constraint_type: "less than",
         value: Number(ruta.precio_max) + 1,
+      });
+    if (Number(ruta.precio_min) > 0)
+      constraints.push({
+        key: "Precio",
+        constraint_type: "greater than",
+        value: Number(ruta.precio_min) - 1,
       });
     if (constraints.length === 1) return null;
 
