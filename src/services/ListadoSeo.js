@@ -38,10 +38,6 @@ const desdeSlug = (s) =>
 const limpio = (t) =>
   typeof t === "string" && t.trim() ? t.replace(/\s+/g, " ").trim() : null;
 
-// Script que agrega a la URL los parámetros que falten, sin recargar.
-export const filtroEnUrl = (parametros) =>
-  `<script>(function(){try{var p=${JSON.stringify(parametros).replace(/</g, "\\u003c")},u=new URL(location.href),s=u.searchParams,c=false;for(var k in p)if(!s.get(k)){s.set(k,p[k]);c=true}if(c)history.replaceState(history.state,"",u.pathname+"?"+s.toString()+u.hash)}catch(e){}})()</script>`;
-
 const pesos = (n) => "$" + Math.round(n).toLocaleString("en-US");
 
 // Migas para las rutas que Bubble crea sin breadcrumb_json (tipo + colonia,
@@ -323,15 +319,7 @@ export const ListadoSeo = {
       // Quien no ejecuta JavaScript lo ve completo en el HTML.
       `<script>(function(){var s=document.getElementById("dotcasa-listado");if(!s)return;s.style.display="none";s.querySelectorAll("[data-arriba]").forEach(function(e){e.remove()});var m=s.querySelector("nav"),t=0,i=setInterval(function(){var a=document.getElementById("dotcasa-migas-slot"),p=document.getElementById("dotcasa-listado-slot");if(m&&a){a.appendChild(m);m=null}if(p){clearInterval(i);p.appendChild(s);s.style.margin="0";s.style.padding="8px 0 24px";s.style.maxWidth="none";s.style.display=""}else if(++t>100){clearInterval(i)}},100)})()</script>`;
 
-    // Filtro de la ruta (/3-recamaras, /hasta-3-millones) como parámetro de
-    // la URL, que es de donde la página buscador de Bubble lee sus filtros.
-    const parametros = recamaras
-      ? { recamaras: String(recamaras) }
-      : precioMax
-        ? { precio_max: String(precioMax) }
-        : null;
-
-    return { titulo, metaDescripcion, cabeza, cuerpo, parametros };
+    return { titulo, metaDescripcion, cabeza, cuerpo };
   },
 
   inyectar(res, d) {
@@ -358,12 +346,6 @@ export const ListadoSeo = {
       })
       .on("head", {
         element: (e) => {
-          // Bubble lee "Get recamaras from page URL" de la URL con la que
-          // arranca la página: el filtro de la ruta se agrega a la URL antes
-          // de que corra cualquier script de Bubble. DCRutas la vuelve a dejar
-          // como /3-recamaras en cuanto el buscador refleja los filtros.
-          if (d.parametros)
-            e.prepend(filtroEnUrl(d.parametros), { html: true });
           e.onEndTag((fin) => {
             if (!hayTitulo)
               fin.before(`<title>${escaparHtml(d.titulo)}</title>`, {
