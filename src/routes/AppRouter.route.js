@@ -39,7 +39,7 @@ export class AppRouter {
     )
       return PuenteLogin.handle(request, env);
 
-    const proxyRequest = async (nuevaRuta = null) => {
+    const proxyRequest = async (nuevaRuta = null, parametros = null) => {
       const target = new URL(request.url);
 
       const init = {
@@ -64,6 +64,8 @@ export class AppRouter {
       if (nuevaRuta) {
         target.pathname = nuevaRuta;
       }
+      for (const [k, v] of Object.entries(parametros ?? {}))
+        if (!target.searchParams.get(k)) target.searchParams.set(k, v);
 
       return fetch(target.toString(), init)
         .then(publicarRespuesta)
@@ -341,13 +343,22 @@ export class AppRouter {
     // ("nuevo-león-monterrey"): a Bubble se le pasa su slug real.
     // Al HTML se le agregan título, descripción, H1, conteo, links a las
     // fichas y schema (ver ListadoSeo.js).
+    const filtroDeRuta = (ruta) =>
+      Number(ruta.recamaras) > 0
+        ? { recamaras: String(Number(ruta.recamaras)) }
+        : Number(ruta.precio_max) > 0
+          ? { precio_max: String(Number(ruta.precio_max)) }
+          : null;
+
     const listado = async (slug) => {
       const ruta = await BubbleManager.resolverRuta(slug, request, env);
       if (!ruta) return noEncontrado();
       const real = ruta[config.BUBBLE.API_CAMPO_SLUG];
       const conDatos = request.method === "GET" && ruta._id;
       const [res, props] = await Promise.all([
-        proxyRequest("/buscador/" + encodeURIComponent(real)),
+        // El filtro de la ruta (/3-recamaras) también va como parámetro a
+        // Bubble, igual que si el usuario lo hubiera elegido en el buscador.
+        proxyRequest("/buscador/" + encodeURIComponent(real), filtroDeRuta(ruta)),
         conDatos ? BubbleManager.propiedadesDeRuta(ruta, request, env) : null,
       ]);
       const html = (res.headers.get("Content-Type") || "").startsWith(
