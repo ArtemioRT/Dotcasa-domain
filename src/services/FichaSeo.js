@@ -6,6 +6,7 @@ import {
   precioCorto,
   precioLargo,
   recortar,
+  fijarTitulo,
 } from "./TextoSeo.js";
 
 // Bubble dibuja la página con JavaScript, así que el HTML que reciben los
@@ -389,7 +390,7 @@ export const FichaSeo = {
                 `<meta name="description" content="${escaparHtml(d.metaDescripcion)}">`,
                 { html: true },
               );
-            fin.before(d.cabeza, { html: true });
+            fin.before(d.cabeza + fijarTitulo(d.titulo), { html: true });
           });
         },
       })

@@ -52,6 +52,13 @@ const CIUDADES_CORTAS = {
 export const ciudadCorta = (slug, nombre) =>
   CIUDADES_CORTAS[slug] ?? nombre;
 
+// Bubble vuelve a escribir el <title> con JavaScript al cargar la página
+// (detalle_propiedad: "... · $$20K | DotCasa"; buscador: el H1 sin marca) y
+// Google indexa la página ya dibujada. Este script deja el título del Worker
+// y lo restaura cada vez que Bubble lo cambia.
+export const fijarTitulo = (titulo) =>
+  `<script>(function(){var t=${JSON.stringify(titulo).replace(/</g, "\\u003c")};function f(){if(document.title!==t)document.title=t}f();new MutationObserver(f).observe(document.head||document.documentElement,{subtree:true,childList:true,characterData:true})})()</script>`;
+
 // "Locales comerciales" -> "Locales Comerciales"
 export const mayusculaInicial = (t) =>
   String(t ?? "").replace(/(^|\s)(\p{L})/gu, (_, a, b) => a + b.toUpperCase());

@@ -59,3 +59,15 @@ test("terreno sin recámaras", () => {
     "Terreno en venta en Los Cavazos, Santiago. 1,000 m² de terreno. $850,000. Contacta directo por WhatsApp.",
   );
 });
+
+test("script que mantiene el título aunque Bubble lo cambie", async () => {
+  const { fijarTitulo } = await import("../src/services/TextoSeo.js");
+  const s = fijarTitulo('Casa en Venta en "X" </script> | DotCasa');
+  assert.match(s, /^<script>/);
+  assert.doesNotMatch(s.slice(8, -9), /<\/script>/);
+  const t = { title: "" };
+  globalThis.document = { get title() { return t.title; }, set title(v) { t.title = v; }, head: {} };
+  globalThis.MutationObserver = class { observe() {} };
+  new Function(s.slice(8, -9))();
+  assert.equal(t.title, 'Casa en Venta en "X" </script> | DotCasa');
+});

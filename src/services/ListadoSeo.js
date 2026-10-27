@@ -9,6 +9,7 @@ import {
   mejorTitulo,
   precioCorto,
   recortar,
+  fijarTitulo,
 } from "./TextoSeo.js";
 
 // Las páginas de listado (/departamento/renta/nuevo-leon/monterrey/...) usan
@@ -337,7 +338,7 @@ export const ListadoSeo = {
                 `<meta name="description" content="${escaparHtml(d.metaDescripcion)}">`,
                 { html: true },
               );
-            fin.before(d.cabeza, { html: true });
+            fin.before(d.cabeza + fijarTitulo(d.titulo), { html: true });
           });
         },
       })
