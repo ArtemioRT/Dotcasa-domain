@@ -197,14 +197,6 @@ export const ListadoSeo = {
       : (limpio(ruta.h1) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`);
     const intro = limpio(ruta.texto_intro);
 
-    // "24 departamentos en renta en San Jerónimo, Monterrey desde $12,000 MXN"
-    const desde = minimo
-      ? ` desde ${pesos(minimo)} MXN${opPrecio === "renta" ? " al mes" : ""}`
-      : "";
-    const conteo = total
-      ? `${total} ${sustantivo}${enOp}${filtroTexto}${lugar}${desde}`
-      : null;
-
     // "Encuentra 48 casas en venta en Colorines, San Pedro Garza García.
     // Precios desde $9M. Fotos, ubicación y contacto directo por WhatsApp."
     // Si no cabe en 155 se acorta el lugar antes de cortar el texto.
@@ -289,8 +281,9 @@ export const ListadoSeo = {
       .filter(Boolean)
       .join("");
 
-    // Bloque visible al final de la página, en el HTML inicial (no se quita
-    // con JavaScript: Google indexa la página ya dibujada).
+    // Bloque al final del body: ruta de navegación, H1 e intro. La lista de
+    // fichas ("Hay N casas... · Se muestran 24 de N") ya no se pinta; las
+    // fichas siguen en el schema ItemList de la cabeza y en el sitemap.
     const link = 'style="color:#0089f1;text-decoration:none"';
     const cuerpo =
       `<section id="dotcasa-listado" style="max-width:1080px;margin:32px auto;padding:0 16px 32px;font-family:Raleway,system-ui,sans-serif;color:#1c2a36;line-height:1.6">` +
@@ -311,22 +304,6 @@ export const ListadoSeo = {
       `<h1 data-arriba style="font-size:20px;margin:8px 0">${escaparHtml(h1)}</h1>` +
       (intro
         ? `<p data-arriba style="margin:0 0 8px">${escaparHtml(intro)}</p>`
-        : "") +
-      (conteo
-        ? `<p style="margin:0 0 16px">Hay ${escaparHtml(conteo)}.</p>`
-        : "") +
-      (fichas.length
-        ? `<ul style="margin:0;padding-left:20px;font-size:14px">` +
-          fichas
-            .map(
-              (f) =>
-                `<li><a href="${escaparHtml(f.ruta)}" ${link}>${escaparHtml(f.texto)}</a></li>`,
-            )
-            .join("") +
-          `</ul>` +
-          (total > fichas.length
-            ? `<p style="font-size:13px;color:#4a5b6e;margin:8px 0 0">Se muestran ${fichas.length} de ${total}. Usa los filtros de arriba para ver el resto.</p>`
-            : "")
         : "") +
       `</section>` +
       // En el navegador el bloque, agregado al final del body, se pinta
