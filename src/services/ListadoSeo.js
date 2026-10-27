@@ -2,6 +2,13 @@ import { config } from "../controllers/config/config.js";
 import { TIPOS, OPERACIONES } from "./FichaSeo.js";
 import { urlFicha } from "./UrlFicha.js";
 import { SitemapRoute } from "../routes/SiteMap.route.js";
+import {
+  ciudadCorta,
+  mayusculaInicial,
+  mejorTitulo,
+  precioCorto,
+  recortar,
+} from "./TextoSeo.js";
 
 // Las páginas de listado (/departamento/renta/nuevo-leon/monterrey/...) usan
 // la página "buscador" de Bubble, que tiene título y descripción fijos, no
@@ -30,20 +37,6 @@ const limpio = (t) =>
   typeof t === "string" && t.trim() ? t.replace(/\s+/g, " ").trim() : null;
 
 const pesos = (n) => "$" + Math.round(n).toLocaleString("en-US");
-
-const recortar = (t, max) =>
-  t.length > max ? t.slice(0, max - 3).trimEnd() + "..." : t;
-
-// "San Pedro Garza García, Nuevo León" -> "san pedro garza garcia nuevo leon"
-// (título y H1 del listado: minúsculas, sin acentos ni comas).
-const textoPlano = (t) =>
-  t
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/,/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
 
 export const ListadoSeo = {
   // ruta: registro de Bubble. props: { lista, total, desde } o null.
@@ -76,53 +69,74 @@ export const ListadoSeo = {
             : " en México";
     const enOp = op ? ` en ${op}` : " en venta y renta";
 
-    // Título: "400 casas en venta en Monterrey, Nuevo León | DotCasa" o
-    // "70 departamentos en renta en San Pedro Garza García, Nuevo León".
-    // Es el conteo real + tipo + operación + lugar. La marca solo entra si el
-    // título no pasa de 60 caracteres (Google corta los largos). Sin conteo
-    // (ruta vacía o sin dato) se usa el título de la ruta de Bubble.
-    const totalTitulo = Number(
+    const total = Number(
       props?.total || ruta[config.BUBBLE.API_CAMPO_TOTAL] || 0,
     );
-    const sustantivoTitulo = tipo
-      ? (totalTitulo === 1 ? tipo : tipoPlural).toLowerCase()
-      : totalTitulo === 1
-        ? "propiedad"
-        : "propiedades";
-    const base = (
-      limpio(ruta.titulo_seo) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`
-    ).replace(/\s*\|\s*DotCasa\s*$/i, "");
-    const conConteo =
-      totalTitulo > 0
-        ? `${totalTitulo.toLocaleString("en-US")} ${textoPlano(`${sustantivoTitulo}${enOp}${lugar}`)}`
-        : null;
-    // Con la marca: "70 departamentos en renta en san pedro nuevo leon | DotCasa".
-    const titulo = `${conConteo ?? base} | DotCasa`;
-    // Mismo texto que el título pero sin la marca: "481 casas en venta en
-    // Monterrey, Nuevo León". Sin conteo, el H1 de la ruta de Bubble.
-    const h1 =
-      conConteo ??
-      (limpio(ruta.h1) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`);
-    const intro = limpio(ruta.texto_intro);
-
-    // "24 departamentos en renta en San Jerónimo, Monterrey desde $12,000 MXN"
-    const total = props?.total || ruta[config.BUBBLE.API_CAMPO_TOTAL] || 0;
     const sustantivo = tipo
       ? (total === 1 ? tipo : tipoPlural).toLowerCase()
       : total === 1
         ? "propiedad"
         : "propiedades";
-    const desde = props?.desde ? ` desde ${pesos(props.desde)} MXN` : "";
+    // "Desde" solo con una operación: en venta y renta juntas el más barato
+    // sería una renta y no dice nada del precio de venta.
+    const minimo = opSlug ? props?.desde : null;
+
+    // Título: "48 Casas en Venta en Colorines, San Pedro desde $9M | DotCasa".
+    // Conteo real + tipo + operación + lugar + precio mínimo. Si no cabe se
+    // prueba con el lugar más corto (sin estado, ciudad corta, sin ciudad) y
+    // luego sin el precio. Sin conteo se usa el título de la ruta de Bubble.
+    const corta = ciudadCorta(ruta.ciudad, ciudad);
+    const lugares = [
+      ...new Set(
+        colonia
+          ? [`${colonia}, ${ciudad}`, `${colonia}, ${corta}`, colonia]
+          : ciudad
+            ? [`${ciudad}, ${estado}`, ciudad, corta]
+            : estado
+              ? [estado]
+              : cp
+                ? [`CP ${cp}`]
+                : ["México"],
+      ),
+    ];
+    const opTitulo = op ? mayusculaInicial(op) : "Venta y Renta";
+    const desdeTitulo = minimo
+      ? ` desde ${precioCorto(minimo, opSlug)}`
+      : "";
+    const sinMarca = (l, d) =>
+      `${total.toLocaleString("en-US")} ${mayusculaInicial(sustantivo)} en ${opTitulo} en ${l}${d}`;
+    const conConteo =
+      total > 0
+        ? mejorTitulo([
+            ...lugares.map((l) => `${sinMarca(l, desdeTitulo)} | DotCasa`),
+            ...lugares.map((l) => `${sinMarca(l, "")} | DotCasa`),
+          ])
+        : null;
+    const base = (
+      limpio(ruta.titulo_seo) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`
+    ).replace(/\s*\|\s*DotCasa\s*$/i, "");
+    const titulo = conConteo ?? `${base} | DotCasa`;
+    // H1: el título sin la marca. Sin conteo, el H1 de la ruta de Bubble.
+    const h1 = conConteo
+      ? conConteo.replace(/\s*\|\s*DotCasa$/, "")
+      : (limpio(ruta.h1) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`);
+    const intro = limpio(ruta.texto_intro);
+
+    // "24 departamentos en renta en San Jerónimo, Monterrey desde $12,000 MXN"
+    const desde = minimo ? ` desde ${pesos(minimo)} MXN` : "";
     const conteo = total
       ? `${total} ${sustantivo}${enOp}${lugar}${desde}`
       : null;
 
+    // "Encuentra 48 casas en venta en Colorines, San Pedro Garza García.
+    // Precios desde $9M. Fotos, ubicación y contacto directo por WhatsApp."
     const metaDescripcion = recortar(
-      conteo
-        ? `${conteo}. Fotos, precio y ubicación de cada propiedad en DotCasa.`
+      total
+        ? `Encuentra ${total.toLocaleString("en-US")} ${sustantivo}${enOp}${lugar}.` +
+            (minimo ? ` Precios desde ${precioCorto(minimo, opSlug)}.` : "") +
+            " Fotos, ubicación y contacto directo por WhatsApp."
         : (limpio(ruta.descripcion_seo) ??
-            `${h1}. Fotos, precio y ubicación en DotCasa.`),
-      160,
+            `${h1}. Fotos, ubicación y contacto directo por WhatsApp.`),
     );
 
     // Migas: las que guarda la ruta (breadcrumb_json); si no sirven, ninguna

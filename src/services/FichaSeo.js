@@ -1,4 +1,12 @@
 import { config } from "../controllers/config/config.js";
+import {
+  LIMITE_DESCRIPCION,
+  ciudadCorta,
+  mejorTitulo,
+  precioCorto,
+  precioLargo,
+  recortar,
+} from "./TextoSeo.js";
 
 // Bubble dibuja la página con JavaScript, así que el HTML que reciben los
 // buscadores y las IAs llega sin título, sin H1 y sin texto. Aquí escribimos
@@ -122,13 +130,24 @@ export const FichaSeo = {
       ? "$" + Math.round(precio).toLocaleString("en-US")
       : null;
     const encabezado = `${tipo} en ${operacion.toLowerCase()} en ${colonia}, ${ciudad}`;
-    // Google corta el título cerca de los 60 caracteres: el precio solo entra
-    // si cabe; si no, va en la descripción.
-    const conPrecio = `${encabezado} · ${precioTexto} | DotCasa`;
-    const titulo =
-      precioTexto && conPrecio.length <= 60
-        ? conPrecio
-        : `${encabezado} | DotCasa`;
+
+    // Título: "Casa en Venta en Contry, Monterrey · 3 rec · $4.2M | DotCasa".
+    // Si no cabe se acorta en este orden: ciudad corta (San Pedro), sin
+    // recámaras, sin ciudad y, al final, sin precio.
+    const corta = ciudadCorta(ciudadSlug, ciudad);
+    const enTitulo = (lugar, ...extras) =>
+      [`${tipo} en ${operacion} en ${lugar}`, ...extras.filter(Boolean)].join(
+        " · ",
+      ) + " | DotCasa";
+    const rec = recamaras && `${recamaras} rec`;
+    const precioT = precioCorto(precio, opSlug);
+    const titulo = mejorTitulo([
+      enTitulo(`${colonia}, ${ciudad}`, rec, precioT),
+      enTitulo(`${colonia}, ${corta}`, rec, precioT),
+      enTitulo(`${colonia}, ${corta}`, precioT),
+      enTitulo(colonia, precioT),
+      enTitulo(colonia),
+    ]);
 
     const medidas = [
       recamaras && `${recamaras} recámaras`,
@@ -143,13 +162,33 @@ export const FichaSeo = {
       ...medidas,
     ].filter(Boolean);
 
-    const resumen =
-      `${encabezado}, ${estado}` +
-      (precioTexto ? ` por ${precioTexto}` : "") +
-      (medidas.length ? `: ${medidas.join(", ")}` : "") +
-      ". Fotos, precio y contacto en DotCasa.";
-    const metaDescripcion =
-      resumen.length > 160 ? resumen.slice(0, 157).trimEnd() + "..." : resumen;
+    // Descripción: "Casa de 3 recámaras y 2.5 baños en Contry, Monterrey.
+    // 180 m² de construcción. $4,200,000. Contacta directo por WhatsApp."
+    const cuartos = [
+      recamaras && `${recamaras} ${recamaras === 1 ? "recámara" : "recámaras"}`,
+      banos && `${banos} ${banos === 1 ? "baño" : "baños"}`,
+    ].filter(Boolean);
+    const quePropiedad = cuartos.length
+      ? `${tipo} de ${cuartos.join(" y ")}`
+      : `${tipo} en ${operacion.toLowerCase()}`;
+    const superficie = construccion
+      ? `${construccion.toLocaleString("en-US")} m² de construcción.`
+      : terreno
+        ? `${terreno.toLocaleString("en-US")} m² de terreno.`
+        : null;
+    const precioD = precioLargo(precio, opSlug);
+    const descripcionCon = (...partes) =>
+      [
+        `${quePropiedad} en ${colonia}, ${ciudad}.`,
+        ...partes.filter(Boolean),
+        "Contacta directo por WhatsApp.",
+      ].join(" ");
+    const larga = descripcionCon(superficie, precioD && `${precioD}.`);
+    const metaDescripcion = recortar(
+      larga.length <= LIMITE_DESCRIPCION
+        ? larga
+        : descripcionCon(precioD && `${precioD}.`),
+    );
 
     const base = "https://" + config.DOMINIO;
     const migas = [
