@@ -17,10 +17,14 @@ export const mejorTitulo = (candidatos) => {
 export const recortar = (t, max = LIMITE_DESCRIPCION) =>
   t.length > max ? t.slice(0, max - 3).trimEnd() + "..." : t;
 
-// Precio para títulos: $4.2M, $9M, $850K en venta; $18,000/mes en renta.
-export const precioCorto = (n, opSlug) => {
+// Precio para títulos: $4.2M, $9M, $850K en venta; $18,000/mes en renta
+// ($18K/mes con compacto, cuando el título no da para más).
+export const precioCorto = (n, opSlug, { compacto = false } = {}) => {
   if (!(n > 0)) return null;
-  if (opSlug === "renta") return `$${Math.round(n).toLocaleString("en-US")}/mes`;
+  if (opSlug === "renta")
+    return compacto && n >= 10_000
+      ? `$${String(Math.round(n / 100) / 10).replace(/\.0$/, "")}K/mes`
+      : `$${Math.round(n).toLocaleString("en-US")}/mes`;
   if (n >= 1_000_000) {
     const m = Math.round(n / 100_000) / 10;
     return `$${String(m).replace(/\.0$/, "")}M`;

@@ -57,13 +57,38 @@ test("renta: precio al mes", () => {
   );
 });
 
-test("sin operación no pone 'desde' (mezclaría rentas y ventas)", () => {
+test("mixta (venta y renta): usa el precio de venta guardado en la ruta", () => {
   const d = datos(
-    { tipo: "casa", estado: "nuevo-leon", ciudad: "monterrey" },
+    { tipo: "casa", estado: "nuevo-leon", ciudad: "monterrey", precio_desde_venta: 2_900_000, precio_desde_renta: 15_000 },
     { total: 45, desde: 15_000, lista: [] },
   );
-  assert.doesNotMatch(d.titulo, /desde/);
-  assert.doesNotMatch(d.metaDescripcion, /desde/);
+  assert.match(d.titulo, /desde \$2\.9M \| DotCasa$/);
+  assert.match(d.metaDescripcion, /Precios desde \$2\.9M\./);
+});
+
+test("mixta solo con rentas: precio de renta al mes", () => {
+  const d = datos(
+    { tipo: "oficina", estado: "nuevo-leon", ciudad: "apodaca", precio_desde_renta: 9_500 },
+    { total: 4, lista: [] },
+  );
+  assert.match(d.titulo, /desde \$9,500\/mes \| DotCasa$/);
+});
+
+test("sin lista del Worker (municipio-, fraccionamiento) usa el precio de la ruta", () => {
+  const d = datos(
+    { tipo: "casa", operacion: "venta", estado: "nuevo-leon", ciudad: "garcia", precio_desde_venta: 1_850_000, total_propiedades: 12 },
+    null,
+  );
+  assert.match(d.titulo, /^12 Casas en Venta en Garcia.* desde \$1\.9M \| DotCasa$/);
+});
+
+test("renta larga: el precio se compacta antes de quitarlo", () => {
+  const t = titulo(
+    { tipo: "departamento", operacion: "renta", estado: "nuevo-leon", ciudad: "san-pedro-garza-garcia" },
+    { total: 39, desde: 12_000, lista: [{ Estado: "Nuevo León", Ciudad: "San Pedro Garza García" }] },
+  );
+  assert.ok(t.length <= 65, t);
+  assert.match(t, /desde \$12(,000|K)\/mes \| DotCasa$/);
 });
 
 test("singular con 1 resultado y miles con coma", () => {

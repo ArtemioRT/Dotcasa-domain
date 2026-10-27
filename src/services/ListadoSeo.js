@@ -3,6 +3,7 @@ import { TIPOS, OPERACIONES } from "./FichaSeo.js";
 import { urlFicha } from "./UrlFicha.js";
 import { SitemapRoute } from "../routes/SiteMap.route.js";
 import {
+  LIMITE_DESCRIPCION,
   ciudadCorta,
   mayusculaInicial,
   mejorTitulo,
@@ -77,9 +78,23 @@ export const ListadoSeo = {
       : total === 1
         ? "propiedad"
         : "propiedades";
-    // "Desde" solo con una operación: en venta y renta juntas el más barato
-    // sería una renta y no dice nada del precio de venta.
-    const minimo = opSlug ? props?.desde : null;
+    // Precio "desde". Bubble lo guarda en cada ruta (actualizar_total_ruta):
+    // precio_desde_venta (venta y preventa) y precio_desde_renta. Con una
+    // operación se usa el mínimo que el Worker acaba de leer y, si no lo hay
+    // (rutas municipio-, fraccionamiento o Bubble sin responder), el de la
+    // ruta. En rutas de venta y renta juntas va el de venta; si la ruta solo
+    // tiene rentas, el de renta.
+    const numeroRuta = (campo) => {
+      const n = Number(ruta[campo]);
+      return n > 0 ? n : null;
+    };
+    const ventaRuta = numeroRuta("precio_desde_venta");
+    const rentaRuta = numeroRuta("precio_desde_renta");
+    const opPrecio =
+      opSlug ?? (ventaRuta ? "venta" : rentaRuta ? "renta" : null);
+    const minimo = opSlug
+      ? (props?.desde ?? (opSlug === "renta" ? rentaRuta : ventaRuta))
+      : (ventaRuta ?? rentaRuta);
 
     // Título: "48 Casas en Venta en Colorines, San Pedro desde $9M | DotCasa".
     // Conteo real + tipo + operación + lugar + precio mínimo. Si no cabe se
@@ -99,18 +114,37 @@ export const ListadoSeo = {
                 : ["México"],
       ),
     ];
-    const opTitulo = op ? mayusculaInicial(op) : "Venta y Renta";
+    // En rutas mixtas "en Venta y Renta" se puede omitir para que entre el precio.
+    const opsTitulo = op
+      ? [` en ${mayusculaInicial(op)}`]
+      : [" en Venta y Renta", ""];
     const desdeTitulo = minimo
-      ? ` desde ${precioCorto(minimo, opSlug)}`
+      ? ` desde ${precioCorto(minimo, opPrecio)}`
       : "";
-    const sinMarca = (l, d) =>
-      `${total.toLocaleString("en-US")} ${mayusculaInicial(sustantivo)} en ${opTitulo} en ${l}${d}`;
+    // Renta en corto si hace falta para que entre el precio: "$12K/mes"
+    const desdeCompacto = minimo
+      ? ` desde ${precioCorto(minimo, opPrecio, { compacto: true })}`
+      : "";
+    const sinMarca = (o, l, d) =>
+      `${total.toLocaleString("en-US")} ${mayusculaInicial(sustantivo)}${o} en ${l}${d}`;
+    const variantes = (d, marca) =>
+      opsTitulo.flatMap((o) =>
+        lugares.map((l) => sinMarca(o, l, d) + (marca ? " | DotCasa" : "")),
+      );
+    // El precio es lo último que se quita: antes se acorta el lugar, la
+    // operación (en mixtas), la renta ($12K/mes) y la marca.
     const conConteo =
       total > 0
-        ? mejorTitulo([
-            ...lugares.map((l) => `${sinMarca(l, desdeTitulo)} | DotCasa`),
-            ...lugares.map((l) => `${sinMarca(l, "")} | DotCasa`),
-          ])
+        ? mejorTitulo(
+            minimo
+              ? [
+                  ...variantes(desdeTitulo, true),
+                  ...variantes(desdeCompacto, true),
+                  ...variantes(desdeCompacto, false),
+                  ...variantes("", true),
+                ]
+              : variantes("", true),
+          )
         : null;
     const base = (
       limpio(ruta.titulo_seo) ?? `${tipoPlural ?? "Propiedades"}${enOp}${lugar}`
@@ -123,18 +157,29 @@ export const ListadoSeo = {
     const intro = limpio(ruta.texto_intro);
 
     // "24 departamentos en renta en San Jerónimo, Monterrey desde $12,000 MXN"
-    const desde = minimo ? ` desde ${pesos(minimo)} MXN` : "";
+    const desde = minimo
+      ? ` desde ${pesos(minimo)} MXN${opPrecio === "renta" ? " al mes" : ""}`
+      : "";
     const conteo = total
       ? `${total} ${sustantivo}${enOp}${lugar}${desde}`
       : null;
 
     // "Encuentra 48 casas en venta en Colorines, San Pedro Garza García.
     // Precios desde $9M. Fotos, ubicación y contacto directo por WhatsApp."
+    // Si no cabe en 155 se acorta el lugar antes de cortar el texto.
+    const lugaresDescripcion = [
+      ...new Set([lugar, ...lugares.map((l) => ` en ${l}`)]),
+    ];
+    const describir = (l) =>
+      `Encuentra ${total.toLocaleString("en-US")} ${sustantivo}${enOp}${l}.` +
+      (minimo ? ` Precios desde ${precioCorto(minimo, opPrecio)}.` : "") +
+      " Fotos, ubicación y contacto directo por WhatsApp.";
     const metaDescripcion = recortar(
       total
-        ? `Encuentra ${total.toLocaleString("en-US")} ${sustantivo}${enOp}${lugar}.` +
-            (minimo ? ` Precios desde ${precioCorto(minimo, opSlug)}.` : "") +
-            " Fotos, ubicación y contacto directo por WhatsApp."
+        ? (lugaresDescripcion
+            .map(describir)
+            .find((t) => t.length <= LIMITE_DESCRIPCION) ??
+            describir(lugaresDescripcion.at(-1)))
         : (limpio(ruta.descripcion_seo) ??
             `${h1}. Fotos, ubicación y contacto directo por WhatsApp.`),
     );
