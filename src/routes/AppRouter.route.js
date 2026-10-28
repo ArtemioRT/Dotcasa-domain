@@ -6,6 +6,7 @@ import { ListadoSeo } from "../services/ListadoSeo.js";
 import { InicioSeo } from "../services/InicioSeo.js";
 import { GoogleLogin } from "../services/GoogleLogin.js";
 import { PuenteLogin } from "../services/PuenteLogin.js";
+import { ReporteAds } from "../services/ReporteAds.js";
 import { AppRedirect } from "../services/AppRedirect.js";
 import {
   repetidas,
@@ -38,6 +39,12 @@ export class AppRouter {
       entrada.pathname === PuenteLogin.RUTA
     )
       return PuenteLogin.handle(request, env);
+    // Reportes de Google Ads y Meta para el panel de admin (los llama Bubble)
+    if (
+      entrada.hostname === config.DOMINIO &&
+      ReporteAds.RUTAS.includes(entrada.pathname)
+    )
+      return ReporteAds.handle(request, env);
 
     const proxyRequest = async (nuevaRuta = null) => {
       const target = new URL(request.url);
