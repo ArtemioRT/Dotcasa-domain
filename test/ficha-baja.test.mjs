@@ -38,10 +38,12 @@ test("candidatos del más parecido al más general", () => {
   }).map((c) => c.ruta);
   assert.deepEqual(rutas, [
     "/casa/venta/nuevo-leon/san-nicolas-de-los-garza/anahuac",
+    "/casa/nuevo-leon/san-nicolas-de-los-garza/anahuac",
     "/venta/nuevo-leon/san-nicolas-de-los-garza/anahuac",
-    "/casa/venta/nuevo-leon/san-nicolas-de-los-garza",
-    "/venta/nuevo-leon/san-nicolas-de-los-garza",
     "/nuevo-leon/san-nicolas-de-los-garza/anahuac",
+    "/casa/venta/nuevo-leon/san-nicolas-de-los-garza",
+    "/casa/nuevo-leon/san-nicolas-de-los-garza",
+    "/venta/nuevo-leon/san-nicolas-de-los-garza",
     "/casa/venta/nuevo-leon",
     "/nuevo-leon/san-nicolas-de-los-garza",
     "/casa/venta",
@@ -160,4 +162,27 @@ test("colonia sin inventario: 302 al listado de arriba; URL inventada: 404", asy
   assert.equal(res.headers.get("Location"), "https://dotcasa.com.mx/casa/venta/nuevo-leon/monterrey");
   res = await get("/casa/venta/nuevo-leon/monterrey/colonia-que-no-existe");
   assert.equal(res.status, 404);
+});
+
+test("cada formato de listado vacío sube al de arriba correcto", () => {
+  const casos = {
+    "/casa/venta/3-recamaras": "/casa/venta",
+    "/casa/venta/nuevo-leon/3-recamaras": "/casa/venta/nuevo-leon",
+    "/casa/venta/nuevo-leon/monterrey/3-recamaras": "/casa/venta/nuevo-leon/monterrey",
+    "/casa/venta/nuevo-leon/monterrey/cumbres/3-recamaras": "/casa/venta/nuevo-leon/monterrey/cumbres",
+    "/casa/venta/hasta-3-millones": "/casa/venta",
+    "/casa/renta/nuevo-leon/monterrey/hasta-15-mil": "/casa/renta/nuevo-leon/monterrey",
+    "/quinta/venta/nuevo-leon/desde-5-millones": "/quinta/venta/nuevo-leon",
+    "/casa/venta/cp/64000": "/casa/venta",
+    "/casa/nuevo-leon/monterrey/cumbres": "/casa/nuevo-leon/monterrey",
+    "/venta/nuevo-leon/monterrey/cumbres": "/venta/nuevo-leon/monterrey",
+    "/nuevo-leon/monterrey/cumbres": "/nuevo-leon/monterrey",
+    "/casa/venta/nuevo-leon": "/casa/venta",
+    "/casa/venta": "/casa",
+  };
+  for (const [desde, arriba] of Object.entries(casos))
+    assert.equal(listadosDeArriba(desde.split("/").filter(Boolean))[0]?.ruta, arriba, desde);
+  // /cp/64000 y /nuevo-leon no tienen listado arriba: van a /propiedades
+  assert.deepEqual(listadosDeArriba(["cp", "64000"]), []);
+  assert.deepEqual(listadosDeArriba(["nuevo-leon"]), []);
 });

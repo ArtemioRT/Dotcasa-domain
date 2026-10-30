@@ -46,14 +46,16 @@ export const candidatosListado = ({ tipo, op, estado, ciudad, colonia }) => {
   const c = e ? ciudad : "";
   const col = c ? colonia : "";
   const opciones = [
-    [t, o, e, c, col],
-    [o, e, c, col],
-    [t, o, e, c],
-    [o, e, c],
-    [e, c, col],
-    [t, o, e],
-    [e, c],
-    [t, o],
+    [t, o, e, c, col], // /casa/venta/nuevo-leon/monterrey/cumbres
+    [t, e, c, col], //    /casa/nuevo-leon/monterrey/cumbres (venta y renta)
+    [o, e, c, col], //    /venta/nuevo-leon/monterrey/cumbres (todos los tipos)
+    [e, c, col], //       /nuevo-leon/monterrey/cumbres
+    [t, o, e, c], //      /casa/venta/nuevo-leon/monterrey
+    [t, e, c], //         /casa/nuevo-leon/monterrey
+    [o, e, c], //         /venta/nuevo-leon/monterrey
+    [t, o, e], //         /casa/venta/nuevo-leon
+    [e, c], //            /nuevo-leon/monterrey
+    [t, o], //            /casa/venta
   ];
   const vistos = new Set();
   const out = [];
