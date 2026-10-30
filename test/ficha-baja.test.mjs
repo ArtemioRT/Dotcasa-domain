@@ -5,6 +5,7 @@ import {
   ubicacionFicha,
   candidatosListado,
   listadoMasCercano,
+  listadosDeArriba,
 } from "../src/services/FichaBaja.js";
 import { AppRouter } from "../src/routes/AppRouter.route.js";
 
@@ -71,8 +72,21 @@ test("elige el primero que existe; sin ninguno /propiedades", async () => {
   );
 });
 
+test("listados de arriba: quita filtro, lugar y segmentos colgantes", () => {
+  const r = (ruta) => listadosDeArriba(ruta.split("/").filter(Boolean)).map((c) => c.ruta);
+  assert.deepEqual(r("/casa/venta/nuevo-leon/monterrey/cumbres"), [
+    "/casa/venta/nuevo-leon/monterrey", "/casa/venta/nuevo-leon", "/casa/venta", "/casa",
+  ]);
+  assert.deepEqual(r("/casa/venta/nuevo-leon/monterrey/cumbres/3-recamaras")[0],
+    "/casa/venta/nuevo-leon/monterrey/cumbres");
+  assert.deepEqual(r("/casa/venta/cp/64000"), ["/casa/venta", "/casa"]);
+  assert.deepEqual(r("/cp/64000"), []);
+});
+
 // ---- Router con la Data API de Bubble simulada ----
 const RUTAS_CON_PROPS = new Set(["casa-venta-nuevo-leon-monterrey", "casa-venta"]);
+// Existen en la tabla ruta pero hoy con 0 propiedades
+const RUTAS_VACIAS = new Set(["casa-venta-nuevo-leon-monterrey-cumbres"]);
 const PROPS = {
   "1x1": {
     _id: "1x1", Estatus: "Finalizado", tipo_slug: "casa", operacion_slug: "venta",
@@ -95,7 +109,10 @@ globalThis.fetch = async (input) => {
   if (u.pathname === "/api/1.1/obj/ruta") {
     const c = JSON.parse(u.searchParams.get("constraints"));
     const slug = c.find((x) => x.key === "slug")?.value;
-    return json({ response: { results: RUTAS_CON_PROPS.has(slug) ? [{ slug }] : [], remaining: 0 } });
+    const conTotal = c.some((x) => x.key === "total_propiedades");
+    if (!slug) return json({ response: { results: [], remaining: 0 } }); // índice
+    const hay = RUTAS_CON_PROPS.has(slug) || (!conTotal && RUTAS_VACIAS.has(slug));
+    return json({ response: { results: hay ? [{ slug }] : [], remaining: 0 } });
   }
   // Página de Bubble (no HTML para que el test no necesite HTMLRewriter)
   return new Response("ficha", { status: 200, headers: { "Content-Type": "text/plain" } });
@@ -135,4 +152,12 @@ test("/propiedad y /detalle_propiedad viejos: a la URL nueva o al listado", asyn
   res = await get("/detalle_propiedad/casa-venta-algo-9x9");
   assert.equal(res.status, 301);
   assert.equal(res.headers.get("Location"), "https://dotcasa.com.mx/casa/venta");
+});
+
+test("colonia sin inventario: 302 al listado de arriba; URL inventada: 404", async () => {
+  let res = await get("/casa/venta/nuevo-leon/monterrey/cumbres");
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get("Location"), "https://dotcasa.com.mx/casa/venta/nuevo-leon/monterrey");
+  res = await get("/casa/venta/nuevo-leon/monterrey/colonia-que-no-existe");
+  assert.equal(res.status, 404);
 });

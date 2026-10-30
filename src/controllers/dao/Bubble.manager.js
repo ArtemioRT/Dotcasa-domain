@@ -78,6 +78,36 @@ export class BubbleManager {
     }
   }
 
+  // ¿Existe la ruta en Bubble aunque hoy tenga 0 propiedades? true / false,
+  // undefined si Bubble no respondió. Sirve para distinguir una colonia que se
+  // quedó sin inventario (302 al listado de arriba) de una URL inventada (404).
+  static async rutaRegistrada(slug, request, env) {
+    const baseUrl = this._getBaseUrl(request, env);
+    const api = new URL(`/api/1.1/obj/${config.BUBBLE.API_TIPO}`, baseUrl);
+    api.search =
+      "?limit=1&constraints=" +
+      encodeURIComponent(
+        JSON.stringify([
+          {
+            key: config.BUBBLE.API_CAMPO_SLUG,
+            constraint_type: "equals",
+            value: slug,
+          },
+        ]),
+      );
+    try {
+      const r = await fetch(api.toString(), {
+        cf: { cacheTtl: config.BUBBLE.CACHE_SEGUNDOS, cacheEverything: true },
+      });
+      if (!r.ok) return undefined;
+      const j = await r.json();
+      return (j.response?.results?.length ?? 0) > 0;
+    } catch (e) {
+      Logger.error(`Error leyendo ruta registrada (Slug: ${slug})`, e.message);
+      return undefined;
+    }
+  }
+
   // Devuelve la ruta (el registro completo de Bubble) que corresponde a un
   // slug ya normalizado, o null si no existe o no tiene propiedades.
   // Las rutas de Bubble pueden guardar acentos ("nuevo-león-monterrey") y la

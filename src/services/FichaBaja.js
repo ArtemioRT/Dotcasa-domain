@@ -78,3 +78,21 @@ export const listadoMasCercano = async (ubicacion, existe) => {
   const i = res.findIndex((r) => r !== false);
   return i === -1 ? "/propiedades" : cands[i].ruta;
 };
+
+// Listado que se quedó sin propiedades (la colonia vendió todo): rutas de
+// arriba, de la más cercana a la más general. Quita el filtro final
+// (/3-recamaras) o el último lugar, y no deja colgando "cp", "municipio" ni
+// "fraccionamiento".
+//   /casa/venta/nuevo-leon/monterrey/cumbres -> /casa/venta/nuevo-leon/monterrey,
+//   /casa/venta/nuevo-leon, /casa/venta, /casa
+export const listadosDeArriba = (norm) => {
+  const COLGANTES = new Set(["cp", "municipio", "fraccionamiento"]);
+  const segs = [...norm];
+  const out = [];
+  while (segs.length > 1) {
+    segs.pop();
+    while (segs.length && COLGANTES.has(segs[segs.length - 1])) segs.pop();
+    if (segs.length) out.push(segs.join("/"));
+  }
+  return out.map((r) => ({ ruta: "/" + r, slug: r.split("/").join("-") }));
+};

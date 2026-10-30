@@ -18,6 +18,7 @@ import {
   estadoFicha,
   ubicacionFicha,
   listadoMasCercano,
+  listadosDeArriba,
 } from "../services/FichaBaja.js";
 import { RobotsRoute } from "./Robots.route.js";
 import { rutaCanonica } from "../services/RutaCanonica.js";
@@ -462,9 +463,22 @@ export class AppRouter {
     // ("nuevo-león-monterrey"): a Bubble se le pasa su slug real.
     // Al HTML se le agregan título, descripción, H1, conteo, links a las
     // fichas y schema (ver ListadoSeo.js).
+    // Listado que existe en Bubble pero hoy tiene 0 propiedades: 302 (no 301,
+    // el inventario puede volver y la URL debe conservar lo ganado) al
+    // listado de arriba que sí tenga. Una URL que nunca existió: 404.
+    const listadoVacio = async (slug) => {
+      const existio = await BubbleManager.rutaRegistrada(slug, request, env);
+      if (!existio) return noEncontrado();
+      for (const c of listadosDeArriba(norm)) {
+        if ((await existeListado(c.slug)) !== false)
+          return Response.redirect(url.origin + c.ruta, 302);
+      }
+      return Response.redirect(url.origin + "/propiedades", 302);
+    };
+
     const listado = async (slug) => {
       const ruta = await BubbleManager.resolverRuta(slug, request, env);
-      if (!ruta) return noEncontrado();
+      if (!ruta) return listadoVacio(slug);
       const real = ruta[config.BUBBLE.API_CAMPO_SLUG];
       const conDatos = request.method === "GET" && ruta._id;
       const q = conFiltrosDeQuery(ruta, url.searchParams);
