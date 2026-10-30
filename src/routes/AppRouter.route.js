@@ -14,6 +14,11 @@ import {
 } from "../services/CookiesViejas.js";
 import { SitemapRoute } from "./SiteMap.route.js";
 import { urlFicha, idDeSlug } from "../services/UrlFicha.js";
+import {
+  estadoFicha,
+  ubicacionFicha,
+  listadoMasCercano,
+} from "../services/FichaBaja.js";
 import { RobotsRoute } from "./Robots.route.js";
 import { rutaCanonica } from "../services/RutaCanonica.js";
 import { tituloDeRespaldo, tituloVacio } from "../services/TituloSeguro.js";
@@ -418,6 +423,41 @@ export class AppRouter {
       );
     const mismaRuta = (a, b) => sinCodificar(a) === sinCodificar(b);
 
+    // Ficha que ya no existe (borrada) o "Finalizado": 301 al listado más
+    // cercano con propiedades (su colonia, si no su ciudad...). Ver FichaBaja.js.
+    // Sin query: los filtros de la URL vieja no aplican al listado.
+    const existeListado = async (slug) => {
+      const r = await BubbleManager.rutaPorSlug(slug, request, env);
+      return r === undefined ? undefined : Boolean(r);
+    };
+    const fichaDeBaja = async (prop, norm) => {
+      const destino = await listadoMasCercano(
+        ubicacionFicha(prop, norm),
+        existeListado,
+      );
+      return new Response(null, {
+        status: 301,
+        headers: {
+          Location: url.origin + destino,
+          // Un día: si la propiedad se reactiva, la ficha vuelve pronto
+          "Cache-Control": "public, max-age=86400",
+        },
+      });
+    };
+    // Ubicación que trae el slug viejo "casa-venta-colonia-ciudad-ID": solo
+    // tipo y operación son seguros (colonia y ciudad no se pueden separar).
+    const ubicacionDeSlug = (slug) => {
+      const s = Utils.normalizar(slug);
+      const tipo = [...config.TIPOS]
+        .sort((a, b) => b.length - a.length)
+        .find((t) => s.startsWith(t + "-"));
+      if (!tipo) return [];
+      const op = [...config.OPS].find((o) =>
+        s.startsWith(tipo + "-" + o + "-"),
+      );
+      return op ? [tipo, op] : [tipo];
+    };
+
     // La URL va sin acentos pero la ruta en Bubble puede tenerlos
     // ("nuevo-león-monterrey"): a Bubble se le pasa su slug real.
     // Al HTML se le agregan título, descripción, H1, conteo, links a las
@@ -493,15 +533,19 @@ export class AppRouter {
         return listado(norm.join("-"));
       if (norm.length === 6) {
         const prop = await buscarPropiedad(parts[5]);
-        if (prop === null) return noEncontrado();
+        // Borrada o vendida: a su listado, no a un 404
+        if (prop === null || (prop && estadoFicha(prop) === "baja"))
+          return fichaDeBaja(prop, norm);
         const destino = prop && rutaDeFicha(prop);
         // Slug viejo o inventado, o ubicación que no es la suya: a su URL real
         if (destino && !mismaRuta(destino, url.pathname))
           return redirigir(destino);
 
         const res = await paginaFicha(prop, parts[5]);
-        // Existe pero no tiene url_publica bonita: se ve, pero no se indexa
-        if (prop && !destino) return noIndexar(res);
+        // Existe pero no tiene url_publica bonita, o está en borrador/pausa:
+        // se ve (el agente la revisa), pero no se indexa
+        if (prop && (!destino || estadoFicha(prop) === "oculta"))
+          return noIndexar(res);
         const html = (res.headers.get("Content-Type") || "").startsWith(
           "text/html",
         );
@@ -565,15 +609,23 @@ export class AppRouter {
       return redirigir("/cp/" + primero);
 
     // Ficha por la URL vieja /detalle_propiedad/<Slug_text o cualquier-cosa-ID>:
-    // si la propiedad tiene url_publica bonita, 301 a ella; si no existe, 404;
+    // si la propiedad tiene url_publica bonita, 301 a ella; si se borró o está
+    // "Finalizado", 301 a su listado (solo si el slug trae un ID; si no, 404);
     // si no tiene url bonita (borrador) o Bubble no respondió, se ve sin indexar.
-    if (primero === "detalle-propiedad") {
-      if (parts.length !== 2) return proxyRequest().then(noIndexar);
+    // /propiedad/<slug> es otro formato viejo de la ficha: mismo trato.
+    if (primero === "detalle-propiedad" || primero === "propiedad") {
+      const vieja = primero === "detalle-propiedad";
+      if (parts.length !== 2)
+        return vieja ? proxyRequest().then(noIndexar) : noEncontrado();
       const prop = await buscarPropiedad(parts[1]);
-      if (prop === null) return noEncontrado();
+      if (prop === null)
+        return idDeSlug(parts[1])
+          ? fichaDeBaja(null, ubicacionDeSlug(parts[1]))
+          : noEncontrado();
+      if (prop && estadoFicha(prop) === "baja") return fichaDeBaja(prop, []);
       const destino = prop && rutaDeFicha(prop);
       if (destino) return redirigir(destino);
-      return proxyRequest().then(noIndexar);
+      return paginaFicha(prop, parts[1]).then(noIndexar);
     }
 
     return proxyRequest();
