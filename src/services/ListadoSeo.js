@@ -263,7 +263,11 @@ export const ListadoSeo = {
       const b = JSON.parse(ruta.breadcrumb_json ?? "");
       migas = (b.itemListElement ?? [])
         .filter((i) => i?.name && i?.item)
-        .map((i) => [String(i.name), String(i.item)]);
+        .map((i) => [
+          String(i.name),
+          String(i.item),
+          fotoPrincipal({ URL_Fotografia_lugar: i.image }),
+        ]);
     } catch (e) {}
     if (!migas.length) migas = migasDeRuta(ruta, { estado, ciudad, colonia });
 
@@ -292,20 +296,31 @@ export const ListadoSeo = {
     // Miniatura del listado (og:image, twitter:image y primaryImageOfPage):
     // la foto principal de la primera propiedad que tenga foto. Las
     // propiedades vienen ordenadas por fecha, así que es la más reciente.
+    // Primero la que Bubble guarda en la ruta (thumbnail: primera foto de
+    // la primera propiedad de la ruta, ver actualizar_total_ruta).
     const conFoto = fichas.find((f) => f.imagen);
-    const imagen = conFoto?.imagen ?? null;
-    const imagenAlt = conFoto ? `${h1} · ${conFoto.nombre}` : null;
+    const deRuta = fotoPrincipal({ URL_Fotografia_lugar: ruta.thumbnail });
+    const imagen = deRuta ?? conFoto?.imagen ?? null;
+    const imagenAlt = imagen
+      ? deRuta || !conFoto
+        ? h1
+        : `${h1} · ${conFoto.nombre}`
+      : null;
+    // La miga de la página actual lleva la miniatura (Bubble la guarda en
+    // breadcrumb_json; si no la trae, la de arriba).
+    if (imagen && migas.length && !migas.at(-1)[2]) migas.at(-1)[2] = imagen;
 
     const cabeza = [
       migas.length &&
         jsonLd({
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",
-          itemListElement: migas.map(([name, item], i) => ({
+          itemListElement: migas.map(([name, item, image], i) => ({
             "@type": "ListItem",
             position: i + 1,
             name,
             item,
+            ...(image ? { image } : {}),
           })),
         }),
       fichas.length &&
