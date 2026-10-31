@@ -22,6 +22,7 @@ import {
 import { RobotsRoute } from "./Robots.route.js";
 import { rutaCanonica } from "../services/RutaCanonica.js";
 import { tituloDeRespaldo, tituloVacio } from "../services/TituloSeguro.js";
+import { destinoPorQuery, partesDeRuta } from "../services/QueryRuta.js";
 
 export class AppRouter {
   static async route(request, env) {
@@ -358,6 +359,9 @@ export class AppRouter {
 
     const redirigir = (nuevaRuta) =>
       Response.redirect(url.origin + nuevaRuta + url.search, 301);
+    // nuevaRuta ya trae su query
+    const redirigirSinQuery = (nuevaRuta) =>
+      Response.redirect(url.origin + nuevaRuta, 301);
 
     // Una sola versión de cada URL: /casas/venta/... (plural) va a
     // /casa/venta/..., y una colonia duplicada ("monterrey-centro") va a la
@@ -370,6 +374,25 @@ export class AppRouter {
           nueva[5] = parts[5];
         return redirigir("/" + nueva.join("/"));
       }
+    }
+
+    // Filtros de ubicación/tipo/operación en la query (anuncios, links viejos):
+    // /nuevo-leon?tipo=casa&operacion=renta&ciudad=Monterrey -> 302 a
+    // /casa/renta/nuevo-leon/monterrey (la ruta más específica con
+    // propiedades). Precio, recámaras, gclid y utm_* se quedan en la query.
+    // 302 y no 301: la ruta elegida depende del inventario de hoy.
+    // Ver QueryRuta.js.
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      ["tipo", "tipos", "operacion", "operaciones", "estado", "estados",
+        "ciudad", "ciudades", "colonia", "colonias"].some((k) =>
+        url.searchParams.has(k),
+      ) &&
+      partesDeRuta(norm)
+    ) {
+      const indice = await BubbleManager.indiceRutas(request, env);
+      const destino = destinoPorQuery(norm, url.searchParams, indice);
+      if (destino) return Response.redirect(url.origin + destino, 302);
     }
 
     // Se ve la página 404 de Bubble, pero con estado 404 para que Google no
@@ -464,7 +487,13 @@ export class AppRouter {
     // fichas y schema (ver ListadoSeo.js).
     const listado = async (slug) => {
       const ruta = await BubbleManager.resolverRuta(slug, request, env);
-      if (!ruta) return noEncontrado();
+      if (!ruta) {
+        // Nombre corto de ciudad (/nuevo-leon/escobedo): 301 al oficial
+        // (/nuevo-leon/general-escobedo) en vez de 404
+        const indice = await BubbleManager.indiceRutas(request, env);
+        const destino = destinoPorQuery(norm, url.searchParams, indice);
+        return destino ? redirigirSinQuery(destino) : noEncontrado();
+      }
       const real = ruta[config.BUBBLE.API_CAMPO_SLUG];
       const conDatos = request.method === "GET" && ruta._id;
       const q = conFiltrosDeQuery(ruta, url.searchParams);
