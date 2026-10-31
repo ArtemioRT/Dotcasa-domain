@@ -40,6 +40,18 @@ const limpio = (t) =>
 
 const pesos = (n) => "$" + Math.round(n).toLocaleString("en-US");
 
+// Primera foto de la propiedad (URL_Fotografia_lugar: lista de URLs del
+// bucket, a veces "//host/..." sin protocolo). null si no tiene.
+export const fotoPrincipal = (p) => {
+  const v = p?.URL_Fotografia_lugar ?? p?.url_fotografia_lugar;
+  const u = (Array.isArray(v) ? v : [v]).find(
+    (x) => typeof x === "string" && x.trim(),
+  );
+  if (!u) return null;
+  const url = u.trim().startsWith("//") ? "https:" + u.trim() : u.trim();
+  return /^https:\/\//.test(url) ? url : null;
+};
+
 // Migas para las rutas que Bubble crea sin breadcrumb_json (tipo + colonia,
 // recámaras, precio): un nivel por cada segmento de la URL.
 const migasDeRuta = (ruta, nombres) => {
@@ -251,7 +263,11 @@ export const ListadoSeo = {
       const b = JSON.parse(ruta.breadcrumb_json ?? "");
       migas = (b.itemListElement ?? [])
         .filter((i) => i?.name && i?.item)
-        .map((i) => [String(i.name), String(i.item)]);
+        .map((i) => [
+          String(i.name),
+          String(i.item),
+          fotoPrincipal({ URL_Fotografia_lugar: i.image }),
+        ]);
     } catch (e) {}
     if (!migas.length) migas = migasDeRuta(ruta, { estado, ciudad, colonia });
 
@@ -272,20 +288,39 @@ export const ListadoSeo = {
           ruta: r,
           nombre: `${t} en ${o}${donde ? " en " + donde : ""}`,
           texto: `${t} en ${o}${donde ? " en " + donde : ""}${precio}`,
+          imagen: fotoPrincipal(p),
         };
       })
       .filter(Boolean);
+
+    // Miniatura del listado (og:image, twitter:image y primaryImageOfPage):
+    // la foto principal de la primera propiedad que tenga foto. Las
+    // propiedades vienen ordenadas por fecha, así que es la más reciente.
+    // Primero la que Bubble guarda en la ruta (thumbnail: primera foto de
+    // la primera propiedad de la ruta, ver actualizar_total_ruta).
+    const conFoto = fichas.find((f) => f.imagen);
+    const deRuta = fotoPrincipal({ URL_Fotografia_lugar: ruta.thumbnail });
+    const imagen = deRuta ?? conFoto?.imagen ?? null;
+    const imagenAlt = imagen
+      ? deRuta || !conFoto
+        ? h1
+        : `${h1} · ${conFoto.nombre}`
+      : null;
+    // La miga de la página actual lleva la miniatura (Bubble la guarda en
+    // breadcrumb_json; si no la trae, la de arriba).
+    if (imagen && migas.length && !migas.at(-1)[2]) migas.at(-1)[2] = imagen;
 
     const cabeza = [
       migas.length &&
         jsonLd({
           "@context": "https://schema.org",
           "@type": "BreadcrumbList",
-          itemListElement: migas.map(([name, item], i) => ({
+          itemListElement: migas.map(([name, item, image], i) => ({
             "@type": "ListItem",
             position: i + 1,
             name,
             item,
+            ...(image ? { image } : {}),
           })),
         }),
       fichas.length &&
@@ -300,7 +335,21 @@ export const ListadoSeo = {
             position: i + 1,
             url: f.url,
             name: f.nombre,
+            ...(f.imagen ? { image: f.imagen } : {}),
           })),
+        }),
+      imagen &&
+        jsonLd({
+          "@context": "https://schema.org",
+          "@type": "CollectionPage",
+          name: h1,
+          url: canonica,
+          primaryImageOfPage: {
+            "@type": "ImageObject",
+            url: imagen,
+            caption: imagenAlt,
+          },
+          thumbnailUrl: imagen,
         }),
       // Rutas con pocas propiedades: Bubble las marca indexable = no
       ruta.indexable === false &&
@@ -347,13 +396,64 @@ export const ListadoSeo = {
       // Quien no ejecuta JavaScript lo ve completo en el HTML.
       `<script>(function(){var s=document.getElementById("dotcasa-listado");if(!s)return;s.style.display="none";s.querySelectorAll("[data-arriba]").forEach(function(e){e.remove()});var m=s.querySelector("nav"),t=0,i=setInterval(function(){var a=document.getElementById("dotcasa-migas-slot"),p=document.getElementById("dotcasa-listado-slot");if(m&&a){a.appendChild(m);m=null}if(p){clearInterval(i);p.appendChild(s);s.style.margin="0";s.style.padding="8px 0 24px";s.style.maxWidth="none";s.style.display=""}else if(++t>100){clearInterval(i)}},100)})()</script>`;
 
-    return { titulo, metaDescripcion, cabeza, cuerpo, exacto };
+    return {
+      titulo,
+      metaDescripcion,
+      cabeza,
+      cuerpo,
+      exacto,
+      imagen,
+      imagenAlt,
+    };
   },
 
   inyectar(res, d) {
     let hayTitulo = false;
     let hayDescripcion = false;
-    return new HTMLRewriter()
+    // Meta de imagen que ya trae Bubble (la imagen genérica de la app): se
+    // cambia por la del listado; las que falten se agregan al final del head.
+    const hay = {};
+    const imagen = (clave) => ({
+      element: (e) => {
+        hay[clave] = true;
+        if (clave === "twitter:card") e.setAttribute("content", "summary_large_image");
+        else if (clave.endsWith(":alt")) e.setAttribute("content", d.imagenAlt ?? "");
+        else e.setAttribute("content", d.imagen);
+      },
+    });
+    const metasImagen = () =>
+      [
+        ["og:image", "property", d.imagen],
+        ["og:image:secure_url", "property", d.imagen],
+        ["og:image:alt", "property", d.imagenAlt],
+        ["twitter:card", "name", "summary_large_image"],
+        ["twitter:image", "name", d.imagen],
+        ["twitter:image:alt", "name", d.imagenAlt],
+      ]
+        .filter(([clave, , valor]) => valor && !hay[clave])
+        .map(
+          ([clave, attr, valor]) =>
+            `<meta ${attr}="${clave}" content="${escaparHtml(valor)}">`,
+        )
+        .join("");
+    let rw = new HTMLRewriter();
+    if (d.imagen)
+      for (const [sel, clave] of [
+        ['meta[property="og:image"]', "og:image"],
+        ['meta[property="og:image:secure_url"]', "og:image:secure_url"],
+        ['meta[property="og:image:alt"]', "og:image:alt"],
+        ['meta[name="twitter:card"]', "twitter:card"],
+        ['meta[name="twitter:image"], meta[property="twitter:image"]', "twitter:image"],
+        ['meta[name="twitter:image:alt"]', "twitter:image:alt"],
+      ])
+        rw = rw.on(sel, imagen(clave));
+    // Bubble a veces trae ancho/alto de su imagen genérica: ya no aplican
+    if (d.imagen)
+      rw = rw.on(
+        'meta[property="og:image:width"], meta[property="og:image:height"]',
+        { element: (e) => e.remove() },
+      );
+    return rw
       .on("title", {
         element: (e) => {
           hayTitulo = true;
@@ -385,7 +485,9 @@ export const ListadoSeo = {
                 { html: true },
               );
             fin.before(
-              d.cabeza + fijarTitulo(d.titulo, { exacto: d.exacto !== false }),
+              (d.imagen ? metasImagen() : "") +
+                d.cabeza +
+                fijarTitulo(d.titulo, { exacto: d.exacto !== false }),
               { html: true },
             );
           });
