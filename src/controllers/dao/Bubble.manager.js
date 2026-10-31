@@ -188,6 +188,61 @@ export class BubbleManager {
     }
   }
 
+  // Slug viejo sin ID (/detalle_propiedad/casa-venta-joyas-de-anahuac-...):
+  // primero el Slug nativo de Bubble (el que usaban las URLs viejas), luego
+  // un Slug_text que empiece igual (el actual es el viejo + "-<ID>").
+  // null si no aparece, undefined si la API falla.
+  static async propiedadPorSlugViejo(slug, request, env) {
+    let valor = slug;
+    try {
+      valor = decodeURIComponent(slug);
+    } catch (e) {}
+    valor = String(valor).trim();
+    if (valor.length < 8) return null;
+    const baseUrl = this._getBaseUrl(request, env);
+    const buscar = async (constraints, limit) => {
+      const api = new URL(
+        `/api/1.1/obj/${config.BUBBLE.API_TIPO_PROP}`,
+        baseUrl,
+      );
+      api.search =
+        `?limit=${limit}&constraints=` +
+        encodeURIComponent(JSON.stringify(constraints));
+      const r = await fetch(api.toString(), {
+        cf: { cacheTtl: config.BUBBLE.CACHE_SEGUNDOS, cacheEverything: true },
+      });
+      if (!r.ok) throw new Error("Bubble " + r.status);
+      return (await r.json()).response?.results ?? [];
+    };
+    try {
+      const nativo = await buscar(
+        [{ key: "Slug", constraint_type: "equals", value: valor }],
+        1,
+      );
+      if (nativo[0]) return nativo[0];
+      const base = Utils.normalizar(valor);
+      const parecidos = await buscar(
+        [
+          {
+            key: config.BUBBLE.API_CAMPO_SLUGTEXT,
+            constraint_type: "text contains",
+            value: valor,
+          },
+        ],
+        5,
+      );
+      return (
+        parecidos.find((p) => {
+          const st = Utils.normalizar(String(p.Slug_text ?? ""));
+          return st === base || st.startsWith(base + "-");
+        }) ?? null
+      );
+    } catch (e) {
+      Logger.error(`Error buscando slug viejo en Bubble (${valor})`, e.message);
+      return undefined;
+    }
+  }
+
   // Busca la propiedad por su unique id de Bubble (el "1234x5678" del final
   // del slug). Igual que arriba: null si no existe, undefined si la API falla.
   static async propiedadPorId(id, request, env) {

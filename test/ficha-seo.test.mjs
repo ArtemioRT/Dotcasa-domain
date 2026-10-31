@@ -48,12 +48,12 @@ test("nombres largos se acortan sin pasar de 65", () => {
   assert.ok(d.titulo.length <= 65, d.titulo);
 });
 
-test("terreno sin recámaras", () => {
+test("terreno sin recámaras: usa los m² para distinguirlo", () => {
   const d = ficha(
     { Ciudad: "Santiago", Colonia: "Los Cavazos", Precio: 850_000, "M^2_Terreno": 1000 },
     ["terreno", "venta", "nuevo-leon", "santiago", "los-cavazos"],
   );
-  assert.equal(d.titulo, "Terreno en Venta en Los Cavazos, Santiago · $850K | DotCasa");
+  assert.equal(d.titulo, "Terreno en Venta en Los Cavazos, Santiago · 1,000 m² · $850K");
   assert.equal(
     d.metaDescripcion,
     "Terreno en venta en Los Cavazos, Santiago. 1,000 m² de terreno. $850,000. Contacta directo por WhatsApp.",

@@ -150,6 +150,9 @@ export const ListadoSeo = {
     const total = Number(
       props?.total || ruta[config.BUBBLE.API_CAMPO_TOTAL] || 0,
     );
+    // Muy poco contenido (1 o 2 propiedades): se ve, pero sin indexar.
+    // 0 es "no se sabe" (Bubble no respondió): ahí no se toca.
+    const pocas = total > 0 && total < config.BUBBLE.SITEMAP_MIN_PROPIEDADES;
     const sustantivo = tipo
       ? (total === 1 ? tipo : tipoPlural).toLowerCase()
       : total === 1
@@ -351,8 +354,10 @@ export const ListadoSeo = {
           },
           thumbnailUrl: imagen,
         }),
-      // Rutas con pocas propiedades: Bubble las marca indexable = no
-      ruta.indexable === false &&
+      // Rutas con pocas propiedades: Bubble las marca indexable = no; por si
+      // la marca va atrasada, aquí también con menos de
+      // SITEMAP_MIN_PROPIEDADES (la misma regla del sitemap).
+      (ruta.indexable === false || pocas) &&
         `<meta name="robots" content="noindex, follow">`,
     ]
       .filter(Boolean)

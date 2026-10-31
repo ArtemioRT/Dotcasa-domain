@@ -18,6 +18,7 @@ import {
   estadoFicha,
   ubicacionFicha,
   listadoMasCercano,
+  ubicacionDeTexto,
 } from "../services/FichaBaja.js";
 import { RobotsRoute } from "./Robots.route.js";
 import { rutaCanonica } from "../services/RutaCanonica.js";
@@ -175,6 +176,21 @@ export class AppRouter {
         });
     };
 
+    // Página de error (404 de Bubble, etc.): sin canonical ni og:url (Bubble
+    // los pone hacia app.dotcasa.com.mx) y con noindex.
+    const comoPaginaDeError = (res) =>
+      new HTMLRewriter()
+        .on('link[rel="canonical"]', { element: (e) => e.remove() })
+        .on('meta[property="og:url"]', { element: (e) => e.remove() })
+        .on('meta[name="robots"]', { element: (e) => e.remove() })
+        .on("head", {
+          element: (e) =>
+            e.append('<meta name="robots" content="noindex, follow">', {
+              html: true,
+            }),
+        })
+        .transform(res);
+
     // Bubble pone su propio canonical apuntando a app.dotcasa.com.mx; lo
     // cambiamos por la URL pública limpia (sin www, sin parámetros, sin "/" final;
     // /index es "/"; ver RutaCanonica.js). También quitamos X-Powered-By y
@@ -189,7 +205,9 @@ export class AppRouter {
       if (!esHtml) return out;
       if (!/charset=/i.test(tipo))
         out.headers.set("Content-Type", tipo + "; charset=utf-8");
-      if (request.method !== "GET" || res.status !== 200) return out;
+      if (request.method !== "GET") return out;
+      if (res.status !== 200)
+        return comoPaginaDeError(out);
 
       const ruta = new URL(request.url).pathname;
       let tituloActual = "";
@@ -398,9 +416,14 @@ export class AppRouter {
     // Se ve la página 404 de Bubble, pero con estado 404 para que Google no
     // la indexe como si fuera una página real.
     const noEncontrado = () =>
-      proxyRequest("/pagina-no-encontrada-404").then(
-        (res) => new Response(res.body, { status: 404, headers: res.headers }),
-      );
+      proxyRequest("/pagina-no-encontrada-404").then((res) => {
+        const r404 = new Response(res.body, { status: 404, headers: res.headers });
+        // Si Bubble respondió 200, pulirHtml le puso canonical a esta URL:
+        // un 404 no lleva canonical (ni og:url) y sí noindex.
+        if (!(res.headers.get("Content-Type") || "").startsWith("text/html"))
+          return r404;
+        return comoPaginaDeError(r404);
+      });
 
     // Con filtros (?precio_max=..., ?recamaras=...) la página sirve, pero Google
     // solo debe indexar la versión limpia.
@@ -467,20 +490,6 @@ export class AppRouter {
         },
       });
     };
-    // Ubicación que trae el slug viejo "casa-venta-colonia-ciudad-ID": solo
-    // tipo y operación son seguros (colonia y ciudad no se pueden separar).
-    const ubicacionDeSlug = (slug) => {
-      const s = Utils.normalizar(slug);
-      const tipo = [...config.TIPOS]
-        .sort((a, b) => b.length - a.length)
-        .find((t) => s.startsWith(t + "-"));
-      if (!tipo) return [];
-      const op = [...config.OPS].find((o) =>
-        s.startsWith(tipo + "-" + o + "-"),
-      );
-      return op ? [tipo, op] : [tipo];
-    };
-
     // La URL va sin acentos pero la ruta en Bubble puede tenerlos
     // ("nuevo-león-monterrey"): a Bubble se le pasa su slug real.
     // Al HTML se le agregan título, descripción, H1, conteo, links a las
@@ -492,7 +501,20 @@ export class AppRouter {
         // (/nuevo-leon/general-escobedo) en vez de 404
         const indice = await BubbleManager.indiceRutas(request, env);
         const destino = destinoPorQuery(norm, url.searchParams, indice);
-        return destino ? redirigirSinQuery(destino) : noEncontrado();
+        if (destino) return redirigirSinQuery(destino);
+        // Colonia que ya no tiene propiedades (o cambió de nombre en los
+        // datos, p. ej. /general-escobedo/joyas-de-anahuac): 301 al listado
+        // más cercano de su ciudad, como las fichas dadas de baja. Solo si la
+        // ciudad sí existe; una URL inventada sigue en 404.
+        const p = partesDeRuta(norm);
+        if (p?.colonia && indice?.has(`${p.estado}-${p.ciudad}`)) {
+          const ruta = await listadoMasCercano(
+            { tipo: p.tipo, op: p.operacion, estado: p.estado, ciudad: p.ciudad, colonia: "" },
+            async (slug) => indice.has(slug),
+          );
+          if (ruta !== "/propiedades") return redirigir(ruta);
+        }
+        return noEncontrado();
       }
       const real = ruta[config.BUBBLE.API_CAMPO_SLUG];
       const conDatos = request.method === "GET" && ruta._id;
@@ -646,11 +668,18 @@ export class AppRouter {
       const vieja = primero === "detalle-propiedad";
       if (parts.length !== 2)
         return vieja ? proxyRequest().then(noIndexar) : noEncontrado();
-      const prop = await buscarPropiedad(parts[1]);
-      if (prop === null)
-        return idDeSlug(parts[1])
-          ? fichaDeBaja(null, ubicacionDeSlug(parts[1]))
-          : noEncontrado();
+      let prop = await buscarPropiedad(parts[1]);
+      // Slug viejo sin ID: Slug nativo de Bubble o Slug_text que empiece igual
+      if (prop === null && !idDeSlug(parts[1]))
+        prop = await BubbleManager.propiedadPorSlugViejo(parts[1], request, env);
+      if (prop === null) {
+        // Ya no existe: al listado de su colonia (o ciudad) según el slug,
+        // comparado contra las rutas que existen. Sin ubicación ni ID: 404.
+        const indice = await BubbleManager.indiceRutas(request, env);
+        const u = ubicacionDeTexto(parts[1], indice);
+        if (!idDeSlug(parts[1]) && !u.ciudad) return noEncontrado();
+        return fichaDeBaja(null, [u.tipo, u.op, u.estado, u.ciudad, u.colonia]);
+      }
       if (prop && estadoFicha(prop) === "baja") return fichaDeBaja(prop, []);
       const destino = prop && rutaDeFicha(prop);
       if (destino) return redirigir(destino);

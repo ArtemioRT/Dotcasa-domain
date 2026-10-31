@@ -89,6 +89,10 @@ export const config = {
     "nuevo-leon/monterrey/real-cumbres": "real-de-cumbres",
     "nuevo-leon/general-escobedo/puerta-del-norte-fraccionamiento-residencial":
       "puerta-del-norte-residencial",
+    // Las propiedades de "Predio Aldape" se corrigieron a su colonia oficial
+    // (Residencial Anáhuac Sector 1); la URL vieja sigue en Google.
+    "nuevo-leon/san-nicolas-de-los-garza/predio-aldape":
+      "residencial-anahuac-sector-1",
   },
 
   // Páginas fijas de Bubble que van al sitemap (ruta exacta, tal cual)

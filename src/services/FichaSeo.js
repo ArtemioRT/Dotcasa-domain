@@ -142,7 +142,12 @@ export const FichaSeo = {
       [`${tipo} en ${operacion} en ${lugar}`, ...extras.filter(Boolean)].join(
         " · ",
       ) + (marca ? " | DotCasa" : "");
-    const rec = recamaras && `${recamaras} rec`;
+    // Sin recámaras (locales, oficinas, terrenos, o el dato no viene) se usan
+    // los m² para que dos fichas de la misma colonia no tengan el mismo título.
+    const m2 = construccion || terreno;
+    const rec =
+      (recamaras && `${recamaras} rec`) ||
+      (m2 && `${m2.toLocaleString("en-US")} m²`);
     const precioT = precioCorto(precio, opSlug);
     const precioC = precioCorto(precio, opSlug, { compacto: true });
     const lugar = `${colonia}, ${ciudad}`;
